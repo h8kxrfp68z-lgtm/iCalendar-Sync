@@ -2,9 +2,12 @@
 Access Control Engine for Multi-Agent Calendar Management
 
 Implements role-based access control (RBAC) and agent permissions.
+Security hardened version.
 """
 
 import logging
+import os
+from pathlib import Path
 from typing import List, Dict, Optional, Set
 from dataclasses import dataclass, field
 from enum import Enum
@@ -57,6 +60,16 @@ class Calendar:
     accessible_by: List[str] = field(default_factory=list)  # Agent IDs
 
 
+class ConfigValidationError(ValueError):
+    """Raised when configuration validation fails"""
+    pass
+
+
+class PathValidationError(ValueError):
+    """Raised when path validation fails"""
+    pass
+
+
 class CalendarVault:
     """
     Multi-agent calendar access control system
@@ -66,6 +79,11 @@ class CalendarVault:
     - Calendar access policies
     - Privacy masking for restricted events
     - Conflict detection across all calendars
+    
+    Security features:
+    - Path traversal protection
+    - Configuration validation
+    - Safe YAML/JSON loading
     """
     
     def __init__(self, config: Dict):
@@ -74,11 +92,50 @@ class CalendarVault:
         
         Args:
             config: Dict with agents and calendars configuration
+            
+        Raises:
+            ConfigValidationError: If config structure is invalid
         """
         self.config = config
         self.agents: Dict[str, AgentPermissions] = {}
         self.calendars: Dict[str, Calendar] = {}
+        self._validate_config()
         self._load_configuration()
+    
+    def _validate_config(self):
+        """Validate configuration structure"""
+        if not isinstance(self.config, dict):
+            raise ConfigValidationError("Config must be a dictionary")
+        
+        if 'agents' not in self.config:
+            raise ConfigValidationError("Missing 'agents' key in config")
+        
+        if 'calendars' not in self.config:
+            raise ConfigValidationError("Missing 'calendars' key in config")
+        
+        if not isinstance(self.config['agents'], list):
+            raise ConfigValidationError("'agents' must be a list")
+        
+        if not isinstance(self.config['calendars'], list):
+            raise ConfigValidationError("'calendars' must be a list")
+        
+        # Validate agent structure
+        for i, agent in enumerate(self.config['agents']):
+            if not isinstance(agent, dict):
+                raise ConfigValidationError(f"Agent {i} must be a dictionary")
+            if 'id' not in agent:
+                raise ConfigValidationError(f"Agent {i} missing 'id' field")
+            if not isinstance(agent.get('calendars', []), list):
+                raise ConfigValidationError(f"Agent {i} 'calendars' must be a list")
+        
+        # Validate calendar structure
+        for i, cal in enumerate(self.config['calendars']):
+            if not isinstance(cal, dict):
+                raise ConfigValidationError(f"Calendar {i} must be a dictionary")
+            if 'name' not in cal:
+                raise ConfigValidationError(f"Calendar {i} missing 'name' field")
+            if 'privacy_level' in cal and cal['privacy_level'] not in ['public', 'shared', 'private', 'masked']:
+                raise ConfigValidationError(f"Calendar {i} has invalid privacy_level")
     
     def _load_configuration(self):
         """Load agents and calendars from config"""
@@ -105,6 +162,50 @@ class CalendarVault:
             )
             self.calendars[calendar.name] = calendar
             logger.info(f"Loaded calendar: {calendar.name} (privacy: {calendar.privacy_level.value})")
+    
+    @staticmethod
+    def _validate_path(file_path: str, allowed_dir: Optional[str] = None) -> Path:
+        """
+        Validate file path to prevent path traversal attacks
+        
+        Args:
+            file_path: Path to validate
+            allowed_dir: Optional base directory to restrict access to
+            
+        Returns:
+            Validated Path object
+            
+        Raises:
+            PathValidationError: If path is invalid or outside allowed directory
+        """
+        try:
+            # Convert to Path and resolve to absolute path
+            path = Path(file_path).resolve()
+            
+            # Check if file exists
+            if not path.exists():
+                raise PathValidationError(f"File not found: {file_path}")
+            
+            # Check if it's a file (not directory)
+            if not path.is_file():
+                raise PathValidationError(f"Path is not a file: {file_path}")
+            
+            # Check for path traversal patterns
+            if '..' in str(file_path):
+                raise PathValidationError("Path traversal detected: '..' not allowed")
+            
+            # If allowed_dir is specified, verify path is within it
+            if allowed_dir:
+                allowed_path = Path(allowed_dir).resolve()
+                if not str(path).startswith(str(allowed_path)):
+                    raise PathValidationError(
+                        f"Path {file_path} is outside allowed directory {allowed_dir}"
+                    )
+            
+            return path
+            
+        except (OSError, RuntimeError) as e:
+            raise PathValidationError(f"Invalid path: {e}")
     
     def get_accessible_calendars(self, agent_id: str) -> List[str]:
         """Get list of calendars accessible to agent"""
@@ -186,16 +287,61 @@ class CalendarVault:
         return True
     
     @staticmethod
-    def from_yaml(yaml_path: str) -> "CalendarVault":
-        """Load vault configuration from YAML file"""
+    def from_yaml(yaml_path: str, allowed_dir: Optional[str] = None) -> "CalendarVault":
+        """
+        Load vault configuration from YAML file
+        
+        Args:
+            yaml_path: Path to YAML config file
+            allowed_dir: Optional directory to restrict file access to
+            
+        Returns:
+            CalendarVault instance
+            
+        Raises:
+            PathValidationError: If path is invalid
+            ConfigValidationError: If config structure is invalid
+        """
         import yaml
-        with open(yaml_path, 'r') as f:
-            config = yaml.safe_load(f)
+        
+        # Validate path
+        validated_path = CalendarVault._validate_path(yaml_path, allowed_dir)
+        
+        try:
+            with open(validated_path, 'r') as f:
+                config = yaml.safe_load(f)
+        except yaml.YAMLError as e:
+            raise ConfigValidationError(f"Invalid YAML: {e}")
+        except OSError as e:
+            raise ConfigValidationError(f"Cannot read file: {e}")
+        
         return CalendarVault(config)
     
     @staticmethod
-    def from_json(json_path: str) -> "CalendarVault":
-        """Load vault configuration from JSON file"""
-        with open(json_path, 'r') as f:
-            config = json.load(f)
+    def from_json(json_path: str, allowed_dir: Optional[str] = None) -> "CalendarVault":
+        """
+        Load vault configuration from JSON file
+        
+        Args:
+            json_path: Path to JSON config file
+            allowed_dir: Optional directory to restrict file access to
+            
+        Returns:
+            CalendarVault instance
+            
+        Raises:
+            PathValidationError: If path is invalid
+            ConfigValidationError: If config structure is invalid
+        """
+        # Validate path
+        validated_path = CalendarVault._validate_path(json_path, allowed_dir)
+        
+        try:
+            with open(validated_path, 'r') as f:
+                config = json.load(f)
+        except json.JSONDecodeError as e:
+            raise ConfigValidationError(f"Invalid JSON: {e}")
+        except OSError as e:
+            raise ConfigValidationError(f"Cannot read file: {e}")
+        
         return CalendarVault(config)

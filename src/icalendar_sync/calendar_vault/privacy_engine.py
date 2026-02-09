@@ -1,8 +1,10 @@
 """
 Privacy Engine - Masking and encryption for sensitive calendar data
+Security hardened version with deepcopy.
 """
 
 import logging
+from copy import deepcopy
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 from enum import Enum
@@ -35,6 +37,8 @@ class PrivacyMask:
 class PrivacyEngine:
     """
     Applies privacy masking to events based on access control
+    
+    Security: Uses deepcopy to prevent mutation of original events
     """
     
     # Default masks by privacy level
@@ -95,14 +99,15 @@ class PrivacyEngine:
             custom_mask: Optional custom mask instead of default
         
         Returns:
-            Masked event dictionary
+            Masked event dictionary (deep copy, original unchanged)
         """
         mask = custom_mask or self.DEFAULT_MASKS.get(privacy_level)
         if not mask:
             logger.warning(f"No mask found for privacy level: {privacy_level}")
-            return event
+            return deepcopy(event)
         
-        masked_event = event.copy()
+        # SECURITY: Use deepcopy to prevent mutation of original event
+        masked_event = deepcopy(event)
         
         # Apply mask rules
         if mask.masked_summary:
@@ -143,18 +148,18 @@ class PrivacyEngine:
             privacy_level: Event privacy level
         
         Returns:
-            Masked or unmasked event
+            Masked or unmasked event (always a copy)
         """
         if agent_has_access:
-            # Agent has access, show full event
-            return event
+            # Agent has access, return copy of full event
+            return deepcopy(event)
         
         # Agent doesn't have access, apply privacy mask
         if privacy_level in (PrivacyLevel.PRIVATE, PrivacyLevel.MASKED):
             return self.apply_privacy_mask(event, privacy_level)
         
-        # For shared/public, show full details
-        return event
+        # For shared/public, return copy with full details
+        return deepcopy(event)
     
     def get_busy_block(
         self,
