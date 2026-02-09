@@ -1,0 +1,86 @@
+name: icalendar-sync
+display_name: "iCalendar Sync"
+version: 2.1.0
+description: >
+  Professional iCloud Calendar integration for OpenClaw.
+  Features enterprise-grade security, Zero Trust access control,
+  and multi-agent isolation.
+
+author: Black_Temple
+license: MIT
+repository: https://github.com/h8kxrfp68z-lgtm/OpenClaw
+homepage: https://clawhub.ai/skills/icalendar-sync
+
+category: productivity
+tags:
+  - calendar
+  - icloud
+  - apple
+  - sync
+  - productivity
+  - security
+  - multi-agent
+
+runtime:
+  type: python
+  version: ">=3.9"
+
+dependencies:
+  python:
+    - caldav>=1.3.0
+    - icalendar>=5.0.0
+    - pyyaml>=6.0
+    - python-dateutil>=2.8.0
+
+environment:
+  - name: ICLOUD_USERNAME
+    description: "Apple ID email address (e.g., name@icloud.com)"
+    required: true
+    placeholder: "user@icloud.com"
+  
+  - name: ICLOUD_APP_PASSWORD
+    description: "App-Specific Password from appleid.apple.com"
+    required: true
+    secure: true
+    placeholder: "xxxx-xxxx-xxxx-xxxx"
+  
+  - name: DEFAULT_CALENDAR
+    description: "Default calendar name if not specified"
+    required: false
+    default: "Personal"
+  
+  - name: LOG_LEVEL
+    description: "Logging level (DEBUG, INFO, WARNING, ERROR)"
+    required: false
+    default: "INFO"
+
+capabilities:
+  agent_aware: true
+  supports_isolation: true
+  security_model: "zero-trust"
+  acl_version: "2.0"
+
+commands:
+  - name: create_event
+    description: Create a new calendar event with conflict detection
+    usage: "create_event <calendar> <json_data>"
+    permissions: [create]
+  
+  - name: get_events
+    description: Sync and retrieve calendar events
+    usage: "get_events <calendar> [--days-ahead 7]"
+    permissions: [read]
+  
+  - name: delete_event
+    description: Remove event from calendar
+    usage: "delete_event <calendar> <uid>"
+    permissions: [delete]
+  
+  - name: list_calendars
+    description: List accessible iCloud calendars
+    usage: "list_calendars"
+    permissions: [read]
+  
+  - name: setup
+    description: Configure iCloud credentials interactively
+    usage: "setup"
