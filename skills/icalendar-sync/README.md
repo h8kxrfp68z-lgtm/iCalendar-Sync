@@ -90,6 +90,102 @@ iCloud Calendar Server
 └── Real-time Sync
 ```
 
+## 💻 Python API Usage
+
+If you want to use `CalendarManager` as a library in your own Python code:
+
+### Installation as Library
+
+```bash
+pip install -e skills/icalendar-sync
+```
+
+### Basic Usage
+
+```python
+from icalendar_sync import CalendarManager
+from datetime import datetime, timedelta
+
+# Initialize manager (credentials from environment or .env)
+mgr = CalendarManager()
+
+# List available calendars
+calendars = mgr.list_calendars()
+print("Available calendars:", calendars)
+
+# Get events from specific calendar
+events = mgr.get_events("Work", days_ahead=7)
+for event in events:
+    print(f"{event['summary']}: {event['start']} - {event['end']}")
+
+# Create new event
+event_data = {
+    "summary": "Team Standup",
+    "start": datetime.now() + timedelta(days=1),
+    "end": datetime.now() + timedelta(days=1, hours=1),
+    "description": "Daily sync meeting",
+    "location": "Zoom"
+}
+mgr.create_event("Work", event_data)
+
+# Delete event by UID
+mgr.delete_event("Work", "event-uid-here")
+```
+
+### Advanced: Multi-Agent Isolation
+
+```python
+# Agent 1: Work context
+work_agent = CalendarManager(allowed_calendars=["Work", "Team"])
+work_events = work_agent.get_events("Work")
+
+# Agent 2: Personal context (cannot access Work calendar)
+personal_agent = CalendarManager(allowed_calendars=["Personal", "Family"])
+# This will raise PermissionError:
+# personal_agent.get_events("Work")
+```
+
+### Error Handling
+
+```python
+from icalendar_sync import CalendarManager, CalendarError
+
+try:
+    mgr = CalendarManager()
+    mgr.create_event("NonExistent", event_data)
+except CalendarError as e:
+    print(f"Calendar error: {e}")
+except PermissionError as e:
+    print(f"Access denied: {e}")
+```
+
+## 🔧 Troubleshooting
+
+### Common Errors
+
+**❌ 401 Unauthorized**
+- **Reason:** Using regular Apple ID password instead of App-Specific Password
+- **Solution:** Generate App-Specific Password at [appleid.apple.com](https://appleid.apple.com/) (see section above)
+
+**❌ Calendar not found**
+- **Reason:** Calendar name doesn't match or case sensitivity
+- **Solution:** 
+  1. Run `icalendar-sync list` to see exact names
+  2. Use the name in the same case: "Work" ≠ "work"
+  3. If name contains spaces, use quotes: `"My Calendar"`
+
+**❌ Connection timeout**
+- **Reason:** Network issues or CalDAV blocking
+- **Solution:** Check internet connection and firewall settings
+
+**❌ Invalid JSON format**
+- **Reason:** Incorrect event data format
+- **Solution:** Check required fields: summary, start, end. Use ISO 8601 format for dates
+
+**❌ Event overlap detected**
+- **Reason:** Time conflict with existing event
+- **Solution:** Check calendar with `get_events` and choose different time
+
 ## 📝 License
 MIT License. Copyright (c) 2026 Black_Temple.
 See [LICENSE](LICENSE) for details.
