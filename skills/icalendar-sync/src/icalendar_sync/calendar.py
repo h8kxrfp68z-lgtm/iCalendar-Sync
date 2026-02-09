@@ -5,7 +5,7 @@ iCalendar Sync - Main Calendar Manager
 Professional iCloud Calendar integration
 
 @author: Black_Temple
-@version: 2.1.1
+@version: 2.2.0
 """
 
 import os
@@ -14,10 +14,15 @@ import argparse
 import getpass
 import json
 import logging
-from datetime import datetime, timedelta, timezone
+import re
+import threading
+import tempfile
+import shutil
+from datetime import datetime, timedelta, timezone, time as dt_time
 from typing import List, Dict, Optional, Tuple
 from functools import wraps
 import time
+from pathlib import Path
 
 try:
     import caldav
@@ -25,42 +30,198 @@ try:
     from caldav.lib.error import AuthorizationError, NotFoundError, DAVError
     from icalendar import Calendar as iCal, Event as iEvent, Alarm, vRecur
     import requests.exceptions
-except ImportError:
-    print("❌ Required packages not installed. Run: pip install -r requirements.txt")
+    import keyring
+    from keyring.errors import KeyringError
+except ImportError as e:
+    print(f"❌ Required packages not installed: {e}")
+    print("Run: pip install -r requirements.txt")
     sys.exit(1)
 
 __author__ = "Black_Temple"
-__version__ = "2.1.1"
+__version__ = "2.2.0"
 
-# Setup logging
+# Security constants
+MAX_CALENDAR_NAME_LENGTH = 255
+MAX_SUMMARY_LENGTH = 500
+MAX_DESCRIPTION_LENGTH = 5000
+MAX_LOCATION_LENGTH = 500
+MAX_JSON_FILE_SIZE = 1024 * 1024  # 1MB
+MAX_DAYS_AHEAD = 365
+MIN_DAYS_AHEAD = 1
+RATE_LIMIT_CALLS = 10  # calls per window
+RATE_LIMIT_WINDOW = 60  # seconds
+INPUT_TIMEOUT = 30  # seconds for interactive input
+
+# Setup logging with sensitive data filtering
+class SensitiveDataFilter(logging.Filter):
+    """Filter sensitive data from logs"""
+    SENSITIVE_PATTERNS = [
+        (re.compile(r'password["\']?\s*[:=]\s*["\']?([^"\',\s]+)', re.IGNORECASE), 'password=***'),
+        (re.compile(r'([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})', re.IGNORECASE), '***@***.***'),
+        (re.compile(r'(xxxx-xxxx-xxxx-xxxx|\d{4}-\d{4}-\d{4}-\d{4})'), '****-****-****-****'),
+    ]
+    
+    def filter(self, record):
+        record.msg = self._sanitize(str(record.msg))
+        if record.args:
+            record.args = tuple(self._sanitize(str(arg)) for arg in record.args)
+        return True
+    
+    def _sanitize(self, text: str) -> str:
+        for pattern, replacement in self.SENSITIVE_PATTERNS:
+            text = pattern.sub(replacement, text)
+        return text
+
 logging.basicConfig(
     level=os.getenv('LOG_LEVEL', 'INFO'),
     format='%(asctime)s | %(levelname)s | %(message)s'
 )
 logger = logging.getLogger(__name__)
+logger.addFilter(SensitiveDataFilter())
+
+
+class RateLimiter:
+    """Simple rate limiter for API calls"""
+    def __init__(self, max_calls: int, window: int):
+        self.max_calls = max_calls
+        self.window = window
+        self.calls = []
+        self.lock = threading.Lock()
+    
+    def acquire(self) -> bool:
+        """Try to acquire rate limit token"""
+        with self.lock:
+            now = time.time()
+            # Remove old calls outside window
+            self.calls = [call_time for call_time in self.calls if now - call_time < self.window]
+            
+            if len(self.calls) >= self.max_calls:
+                return False
+            
+            self.calls.append(now)
+            return True
+    
+    def wait_if_needed(self):
+        """Wait until rate limit allows"""
+        while not self.acquire():
+            time.sleep(1)
 
 
 def retry(max_attempts: int = 3, delay: float = 1.0, backoff: float = 2.0):
-    """Retry decorator with exponential backoff"""
+    """Retry decorator with exponential backoff and traceback cleanup"""
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
             attempt = 0
             current_delay = delay
+            last_exception = None
+            
             while attempt < max_attempts:
                 try:
                     return func(*args, **kwargs)
                 except (requests.exceptions.RequestException, DAVError) as e:
                     attempt += 1
+                    last_exception = e
+                    
                     if attempt >= max_attempts:
-                        logger.error(f"Failed after {max_attempts} attempts: {str(e)}")
+                        logger.error(f"Failed after {max_attempts} attempts")
                         raise
-                    logger.warning(f"Attempt {attempt} failed, retrying in {current_delay}s: {str(e)}")
+                    
+                    logger.warning(f"Attempt {attempt} failed, retrying in {current_delay}s")
                     time.sleep(current_delay)
                     current_delay *= backoff
+                    
+                    # Clear exception to prevent memory leak
+                    del e
+            
             return None
         return wrapper
     return decorator
+
+
+def validate_calendar_name(name: str) -> bool:
+    """Validate calendar name for security"""
+    if not name or not isinstance(name, str):
+        return False
+    if len(name) > MAX_CALENDAR_NAME_LENGTH:
+        return False
+    # Allow only alphanumeric, spaces, hyphens, underscores
+    if not re.match(r'^[a-zA-Z0-9\s_-]+$', name):
+        return False
+    # Prevent path traversal
+    if '..' in name or '/' in name or '\\' in name:
+        return False
+    return True
+
+
+def validate_email(email: str) -> bool:
+    """Validate email address"""
+    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    return bool(re.match(pattern, email))
+
+
+def sanitize_text(text: str, max_length: int) -> str:
+    """Sanitize and truncate text fields"""
+    if not isinstance(text, str):
+        text = str(text)
+    # Remove control characters
+    text = ''.join(char for char in text if char.isprintable() or char in '\n\t')
+    # Truncate
+    if len(text) > max_length:
+        text = text[:max_length-3] + '...'
+    return text
+
+
+def safe_file_read(file_path: str, max_size: int = MAX_JSON_FILE_SIZE) -> Optional[str]:
+    """Safely read file with size limit and path validation"""
+    try:
+        # Resolve and validate path
+        path = Path(file_path).resolve()
+        
+        # Check if file exists
+        if not path.is_file():
+            logger.error(f"File not found: {file_path}")
+            return None
+        
+        # Check file size
+        if path.stat().st_size > max_size:
+            logger.error(f"File too large: {path.stat().st_size} bytes (max {max_size})")
+            return None
+        
+        # Read file
+        with open(path, 'r', encoding='utf-8') as f:
+            return f.read()
+    
+    except (OSError, ValueError) as e:
+        logger.error(f"Error reading file: {str(e)}")
+        return None
+
+
+def timed_input(prompt: str, timeout: int = INPUT_TIMEOUT) -> Optional[str]:
+    """Input with timeout (Unix-like systems)"""
+    import signal
+    
+    def timeout_handler(signum, frame):
+        raise TimeoutError("Input timeout")
+    
+    try:
+        # Set signal alarm (Unix only)
+        if hasattr(signal, 'SIGALRM'):
+            signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(timeout)
+        
+        result = input(prompt)
+        
+        if hasattr(signal, 'SIGALRM'):
+            signal.alarm(0)  # Cancel alarm
+        
+        return result
+    
+    except TimeoutError:
+        print("\n⏱️  Input timeout")
+        return None
+    except Exception:
+        return input(prompt)  # Fallback for Windows
 
 
 class CalendarManager:
@@ -68,18 +229,39 @@ class CalendarManager:
     
     def __init__(self):
         self.username = os.getenv('ICLOUD_USERNAME')
-        self.password = os.getenv('ICLOUD_APP_PASSWORD')
+        self.password = self._load_password()
         self.client: Optional[DAVClient] = None
         self._connected: bool = False
         self._connection_time: Optional[datetime] = None
         self._cache_timeout: int = 300  # 5 minutes
+        self._connection_lock = threading.Lock()
+        self._rate_limiter = RateLimiter(RATE_LIMIT_CALLS, RATE_LIMIT_WINDOW)
+    
+    def _load_password(self) -> Optional[str]:
+        """Load password from keyring or env"""
+        username = self.username
+        if not username:
+            return os.getenv('ICLOUD_APP_PASSWORD')
+        
+        try:
+            # Try keyring first
+            password = keyring.get_password('openclaw-icalendar', username)
+            if password:
+                logger.debug("Loaded password from keyring")
+                return password
+        except KeyringError:
+            pass
+        
+        # Fallback to env
+        return os.getenv('ICLOUD_APP_PASSWORD')
     
     def _is_connection_valid(self) -> bool:
-        """Check if cached connection is still valid"""
-        if not self._connected or not self._connection_time:
-            return False
-        elapsed = (datetime.now(timezone.utc) - self._connection_time).total_seconds()
-        return elapsed < self._cache_timeout
+        """Check if cached connection is still valid (thread-safe)"""
+        with self._connection_lock:
+            if not self._connected or not self._connection_time:
+                return False
+            elapsed = (datetime.now(timezone.utc) - self._connection_time).total_seconds()
+            return elapsed < self._cache_timeout
     
     @retry(max_attempts=3, delay=1.0, backoff=2.0)
     def connect(self) -> bool:
@@ -94,38 +276,43 @@ class CalendarManager:
             logger.error("Missing iCloud credentials")
             return False
         
+        # Rate limiting
+        self._rate_limiter.wait_if_needed()
+        
         try:
-            self.client = DAVClient(
-                url="https://caldav.icloud.com",
-                username=self.username,
-                password=self.password
-            )
-            principal = self.client.principal()
-            principal.calendars()
+            with self._connection_lock:
+                self.client = DAVClient(
+                    url="https://caldav.icloud.com",
+                    username=self.username,
+                    password=self.password,
+                    ssl_verify_cert=True  # Enforce SSL verification
+                )
+                principal = self.client.principal()
+                principal.calendars()
+                
+                self._connected = True
+                self._connection_time = datetime.now(timezone.utc)
+                logger.info("Successfully connected to iCloud CalDAV")
+                return True
             
-            self._connected = True
-            self._connection_time = datetime.now(timezone.utc)
-            logger.info("Successfully connected to iCloud CalDAV")
-            return True
-            
-        except AuthorizationError as e:
-            print(f"❌ Authentication failed: Invalid credentials")
-            logger.error(f"Authentication failed: {str(e)}")
+        except AuthorizationError:
+            print("❌ Authentication failed: Invalid credentials")
+            logger.error("Authentication failed")
             self._connected = False
             return False
-        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
-            print(f"❌ Network error: {e}")
-            logger.error(f"Network error: {str(e)}")
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+            print("❌ Network error")
+            logger.error("Network error")
             self._connected = False
             raise  # Re-raise for retry decorator
-        except DAVError as e:
-            print(f"❌ CalDAV error: {e}")
-            logger.error(f"CalDAV error: {str(e)}")
+        except DAVError:
+            print("❌ CalDAV error")
+            logger.error("CalDAV error")
             self._connected = False
             raise  # Re-raise for retry decorator
         except Exception as e:
-            print(f"❌ Unexpected error: {e}")
-            logger.error(f"Unexpected connection error: {str(e)}")
+            print(f"❌ Unexpected error: {type(e).__name__}")
+            logger.error(f"Unexpected connection error: {type(e).__name__}")
             self._connected = False
             return False
     
@@ -133,6 +320,8 @@ class CalendarManager:
         """List all calendars"""
         if not self.connect():
             return []
+        
+        self._rate_limiter.wait_if_needed()
         
         try:
             principal = self.client.principal()
@@ -148,17 +337,17 @@ class CalendarManager:
             
             return calendar_names
             
-        except NotFoundError as e:
-            print(f"❌ Calendars not found: {e}")
-            logger.error(f"Calendars not found: {str(e)}")
+        except NotFoundError:
+            print("❌ Calendars not found")
+            logger.error("Calendars not found")
             return []
-        except DAVError as e:
-            print(f"❌ CalDAV error: {e}")
-            logger.error(f"Error listing calendars: {str(e)}")
+        except DAVError:
+            print("❌ CalDAV error")
+            logger.error("Error listing calendars")
             return []
         except Exception as e:
-            print(f"❌ Error: {e}")
-            logger.error(f"Unexpected error listing calendars: {str(e)}")
+            print("❌ Error listing calendars")
+            logger.error(f"Unexpected error listing calendars: {type(e).__name__}")
             return []
     
     def _check_event_conflicts(
@@ -193,12 +382,25 @@ class CalendarManager:
                             evt_start_dt = evt_start.dt
                             evt_end_dt = evt_end.dt
                             
-                            # Convert to datetime if date
+                            # Convert date to datetime properly
                             if not isinstance(evt_start_dt, datetime):
-                                evt_start_dt = datetime.combine(evt_start_dt, datetime.min.time())
-                                evt_start_dt = evt_start_dt.replace(tzinfo=timezone.utc)
+                                # Use start of day in user's timezone
+                                evt_start_dt = datetime.combine(
+                                    evt_start_dt, 
+                                    dt_time.min
+                                ).replace(tzinfo=start.tzinfo or timezone.utc)
+                            
                             if not isinstance(evt_end_dt, datetime):
-                                evt_end_dt = datetime.combine(evt_end_dt, datetime.max.time())
+                                # Use end of day in user's timezone
+                                evt_end_dt = datetime.combine(
+                                    evt_end_dt, 
+                                    dt_time.max
+                                ).replace(tzinfo=end.tzinfo or timezone.utc)
+                            
+                            # Ensure timezone awareness
+                            if evt_start_dt.tzinfo is None:
+                                evt_start_dt = evt_start_dt.replace(tzinfo=timezone.utc)
+                            if evt_end_dt.tzinfo is None:
                                 evt_end_dt = evt_end_dt.replace(tzinfo=timezone.utc)
                             
                             # Check overlap
@@ -213,13 +415,26 @@ class CalendarManager:
             return conflicts
             
         except Exception as e:
-            logger.warning(f"Could not check conflicts: {str(e)}")
+            logger.warning(f"Could not check conflicts: {type(e).__name__}")
             return []
     
     def get_events(self, calendar_name: str, days_ahead: int = 7) -> List:
         """Get calendar events"""
+        # Validate calendar name
+        if not validate_calendar_name(calendar_name):
+            print("❌ Invalid calendar name")
+            logger.error(f"Invalid calendar name provided")
+            return []
+        
+        # Validate days_ahead
+        if not (MIN_DAYS_AHEAD <= days_ahead <= MAX_DAYS_AHEAD):
+            print(f"❌ days_ahead must be between {MIN_DAYS_AHEAD} and {MAX_DAYS_AHEAD}")
+            return []
+        
         if not self.connect():
             return []
+        
+        self._rate_limiter.wait_if_needed()
         
         try:
             principal = self.client.principal()
@@ -257,26 +472,33 @@ class CalendarManager:
             
             return events
             
-        except NotFoundError as e:
+        except NotFoundError:
             print(f"❌ Calendar '{calendar_name}' not found")
-            logger.error(f"Calendar not found: {str(e)}")
+            logger.error("Calendar not found")
             return []
-        except DAVError as e:
-            print(f"❌ CalDAV error: {e}")
-            logger.error(f"Error getting events: {str(e)}")
+        except DAVError:
+            print("❌ CalDAV error")
+            logger.error("Error getting events")
             return []
         except Exception as e:
-            print(f"❌ Error: {e}")
-            logger.error(f"Unexpected error getting events: {str(e)}")
+            print("❌ Error getting events")
+            logger.error(f"Unexpected error getting events: {type(e).__name__}")
             return []
     
     def create_event(
         self, 
         calendar_name: str, 
         event_data: Dict,
-        check_conflicts: bool = True
+        check_conflicts: bool = True,
+        auto_confirm: bool = False
     ) -> bool:
         """Create new event with validation and conflict detection"""
+        # Validate calendar name
+        if not validate_calendar_name(calendar_name):
+            print("❌ Invalid calendar name")
+            logger.error("Invalid calendar name provided")
+            return False
+        
         if not self.connect():
             return False
         
@@ -312,6 +534,24 @@ class CalendarManager:
             print("❌ Event end time must be after start time")
             return False
         
+        # Sanitize text fields
+        summary = sanitize_text(event_data['summary'], MAX_SUMMARY_LENGTH)
+        event_data['summary'] = summary
+        
+        if 'description' in event_data:
+            event_data['description'] = sanitize_text(
+                event_data['description'], 
+                MAX_DESCRIPTION_LENGTH
+            )
+        
+        if 'location' in event_data:
+            event_data['location'] = sanitize_text(
+                event_data['location'], 
+                MAX_LOCATION_LENGTH
+            )
+        
+        self._rate_limiter.wait_if_needed()
+        
         try:
             principal = self.client.principal()
             calendar = principal.calendar(name=calendar_name)
@@ -324,10 +564,11 @@ class CalendarManager:
                     for conf in conflicts:
                         print(f"   - {conf['summary']} ({conf['start']} to {conf['end']})")
                     
-                    response = input("Continue anyway? (y/n): ").lower()
-                    if response != 'y':
-                        print("Event creation cancelled")
-                        return False
+                    if not auto_confirm:
+                        response = timed_input("Continue anyway? (y/n): ")
+                        if response is None or response.lower() != 'y':
+                            print("Event creation cancelled")
+                            return False
             
             # Create iCalendar event
             cal = iCal()
@@ -338,7 +579,7 @@ class CalendarManager:
             import uuid
             event.add('uid', str(uuid.uuid4()))
             event.add('dtstamp', datetime.now(timezone.utc))
-            event.add('summary', event_data['summary'])
+            event.add('summary', summary)
             event.add('dtstart', dtstart)
             event.add('dtend', dtend)
             
@@ -349,27 +590,29 @@ class CalendarManager:
                 event.add('description', event_data['description'])
             if 'status' in event_data:
                 event.add('status', event_data['status'])
-            if 'priority' in event_data:
-                event.add('priority', event_data['priority'])
+            if 'priority' in event_data and isinstance(event_data['priority'], int):
+                event.add('priority', max(0, min(9, event_data['priority'])))
             
             # Add alarms if specified
             if 'alarms' in event_data and isinstance(event_data['alarms'], list):
                 for alarm_data in event_data['alarms']:
-                    alarm = Alarm()
-                    alarm.add('action', 'DISPLAY')
-                    alarm.add('trigger', timedelta(minutes=-alarm_data.get('minutes', 15)))
-                    alarm.add('description', alarm_data.get('description', 'Reminder'))
-                    event.add_component(alarm)
+                    if isinstance(alarm_data, dict):
+                        alarm = Alarm()
+                        alarm.add('action', 'DISPLAY')
+                        minutes = alarm_data.get('minutes', 15)
+                        alarm.add('trigger', timedelta(minutes=-abs(minutes)))
+                        alarm.add('description', alarm_data.get('description', 'Reminder'))
+                        event.add_component(alarm)
             
             # Add recurring rules if specified
-            if 'rrule' in event_data:
+            if 'rrule' in event_data and isinstance(event_data['rrule'], dict):
                 rrule_data = event_data['rrule']
                 rrule_dict = {'FREQ': [rrule_data.get('freq', 'WEEKLY')]}
                 
-                if 'count' in rrule_data:
-                    rrule_dict['COUNT'] = [rrule_data['count']]
-                if 'interval' in rrule_data:
-                    rrule_dict['INTERVAL'] = [rrule_data['interval']]
+                if 'count' in rrule_data and isinstance(rrule_data['count'], int):
+                    rrule_dict['COUNT'] = [max(1, rrule_data['count'])]
+                if 'interval' in rrule_data and isinstance(rrule_data['interval'], int):
+                    rrule_dict['INTERVAL'] = [max(1, rrule_data['interval'])]
                 if 'byday' in rrule_data:
                     rrule_dict['BYDAY'] = rrule_data['byday']
                 if 'until' in rrule_data:
@@ -382,31 +625,45 @@ class CalendarManager:
             # Save event
             calendar.save_event(cal.to_ical().decode('utf-8'))
             
-            print(f"✅ Event '{event_data['summary']}' created successfully")
-            logger.info(f"Created event: {event_data['summary']} in {calendar_name}")
+            print(f"✅ Event '{summary}' created successfully")
+            logger.info(f"Created event in {calendar_name}")
             return True
             
-        except NotFoundError as e:
+        except NotFoundError:
             print(f"❌ Calendar '{calendar_name}' not found")
-            logger.error(f"Calendar not found: {str(e)}")
+            logger.error("Calendar not found")
             return False
-        except DAVError as e:
-            print(f"❌ CalDAV error: {e}")
-            logger.error(f"Error creating event: {str(e)}")
+        except DAVError:
+            print("❌ CalDAV error")
+            logger.error("Error creating event")
             return False
         except Exception as e:
-            print(f"❌ Error creating event: {e}")
-            logger.error(f"Unexpected error creating event: {str(e)}")
+            print("❌ Error creating event")
+            logger.error(f"Unexpected error creating event: {type(e).__name__}")
             return False
     
     def delete_event(self, calendar_name: str, event_uid: str) -> bool:
         """Delete event"""
-        if not self.connect():
+        # Validate calendar name
+        if not validate_calendar_name(calendar_name):
+            print("❌ Invalid calendar name")
+            logger.error("Invalid calendar name provided")
             return False
         
         if not event_uid or not isinstance(event_uid, str):
             print("❌ Valid event UID required")
             return False
+        
+        # Sanitize UID
+        event_uid = event_uid.strip()
+        if len(event_uid) > 500:
+            print("❌ Invalid event UID (too long)")
+            return False
+        
+        if not self.connect():
+            return False
+        
+        self._rate_limiter.wait_if_needed()
         
         try:
             principal = self.client.principal()
@@ -415,21 +672,21 @@ class CalendarManager:
             event = calendar.event_by_uid(event_uid)
             event.delete()
             
-            print(f"🗑️  Event deleted successfully")
-            logger.info(f"Deleted event: {event_uid} from {calendar_name}")
+            print("🗑️  Event deleted successfully")
+            logger.info(f"Deleted event from {calendar_name}")
             return True
             
-        except NotFoundError as e:
-            print(f"❌ Event or calendar not found")
-            logger.error(f"Event/calendar not found: {str(e)}")
+        except NotFoundError:
+            print("❌ Event or calendar not found")
+            logger.error("Event/calendar not found")
             return False
-        except DAVError as e:
-            print(f"❌ CalDAV error: {e}")
-            logger.error(f"Error deleting event: {str(e)}")
+        except DAVError:
+            print("❌ CalDAV error")
+            logger.error("Error deleting event")
             return False
         except Exception as e:
-            print(f"❌ Error deleting event: {e}")
-            logger.error(f"Unexpected error deleting event: {str(e)}")
+            print("❌ Error deleting event")
+            logger.error(f"Unexpected error deleting event: {type(e).__name__}")
             return False
 
 
@@ -445,11 +702,11 @@ def cmd_setup(args):
         print("❌ Email cannot be empty")
         return
     
-    # Basic email validation
-    if '@' not in email or '.' not in email.split('@')[1]:
-        print("⚠️  Email format looks invalid")
-        response = input("Continue anyway? (y/n): ").lower()
-        if response != 'y':
+    # Validate email
+    if not validate_email(email):
+        print("❌ Invalid email format")
+        response = timed_input("Continue anyway? (y/n): ")
+        if response is None or response.lower() != 'y':
             print("Setup cancelled")
             return
     
@@ -461,31 +718,43 @@ def cmd_setup(args):
     # Validate format
     if not all(c.isalnum() or c == '-' for c in password):
         print("⚠️  Password format looks unusual")
-        response = input("Are you sure this is correct? (y/n): ").lower()
-        if response != 'y':
+        response = timed_input("Are you sure this is correct? (y/n): ")
+        if response is None or response.lower() != 'y':
             print("Setup cancelled")
             return
     
-    # Save to .env
-    env_path = os.path.expanduser("~/.openclaw/.env")
-    os.makedirs(os.path.dirname(env_path), exist_ok=True)
+    # Try to store in keyring first
+    try:
+        keyring.set_password('openclaw-icalendar', email, password)
+        print("\n✅ Credentials saved securely to system keyring")
+        logger.info("Credentials stored in keyring")
+    except KeyringError:
+        print("⚠️  Could not access system keyring, falling back to .env file")
+        
+        # Fallback to .env file with atomic write
+        env_path = Path.home() / ".openclaw" / ".env"
+        env_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Read existing lines
+        lines = []
+        if env_path.exists():
+            with open(env_path, 'r') as f:
+                lines = [l for l in f.readlines() 
+                        if not l.startswith(('ICLOUD_USERNAME', 'ICLOUD_APP_PASSWORD'))]
+        
+        # Write atomically using temp file
+        lines.append(f'ICLOUD_USERNAME="{email}"\n')
+        lines.append(f'ICLOUD_APP_PASSWORD="{password}"\n')
+        
+        with tempfile.NamedTemporaryFile('w', delete=False, dir=env_path.parent) as tmp:
+            tmp.writelines(lines)
+            tmp_path = tmp.name
+        
+        shutil.move(tmp_path, str(env_path))
+        os.chmod(env_path, 0o600)
+        
+        print(f"\n✅ Configuration saved securely to {env_path}")
     
-    # Read existing
-    lines = []
-    if os.path.exists(env_path):
-        with open(env_path, 'r') as f:
-            lines = [l for l in f.readlines() 
-                    if not l.startswith(('ICLOUD_USERNAME', 'ICLOUD_APP_PASSWORD'))]
-    
-    # Write with proper newlines
-    lines.append(f'ICLOUD_USERNAME="{email}"\n')
-    lines.append(f'ICLOUD_APP_PASSWORD="{password}"\n')
-    
-    with open(env_path, 'w') as f:
-        f.writelines(lines)
-    
-    os.chmod(env_path, 0o600)
-    print(f"\n✅ Configuration saved securely to {env_path}")
     print("🚀 You can now use iCalendar Sync!\n")
 
 
@@ -514,9 +783,16 @@ def cmd_create_event(args):
     try:
         # Parse JSON
         if os.path.isfile(args.json):
-            with open(args.json, 'r') as f:
-                event_data = json.load(f)
+            content = safe_file_read(args.json, MAX_JSON_FILE_SIZE)
+            if content is None:
+                print("❌ Could not read JSON file")
+                return
+            event_data = json.loads(content)
         else:
+            # Limit inline JSON size too
+            if len(args.json) > MAX_JSON_FILE_SIZE:
+                print("❌ JSON data too large")
+                return
             event_data = json.loads(args.json)
         
         # Convert string dates to datetime
@@ -527,7 +803,8 @@ def cmd_create_event(args):
         
         manager = CalendarManager()
         check_conflicts = not args.no_conflict_check if hasattr(args, 'no_conflict_check') else True
-        manager.create_event(args.calendar, event_data, check_conflicts=check_conflicts)
+        auto_confirm = getattr(args, 'yes', False)
+        manager.create_event(args.calendar, event_data, check_conflicts=check_conflicts, auto_confirm=auto_confirm)
         
     except json.JSONDecodeError as e:
         print(f"❌ Invalid JSON: {e}")
@@ -576,7 +853,7 @@ Examples:
     get_parser = subparsers.add_parser('get', help='Get calendar events')
     get_parser.add_argument('--calendar', help='Calendar name')
     get_parser.add_argument('--days', type=int, default=7, dest='days_ahead',
-                           help='Days ahead to retrieve (default: 7)')
+                           help=f'Days ahead to retrieve (default: 7, max: {MAX_DAYS_AHEAD})')
     get_parser.set_defaults(func=cmd_get_events)
     
     # Create event
@@ -586,6 +863,8 @@ Examples:
                               help='JSON with event data (file path or JSON string)')
     create_parser.add_argument('--no-conflict-check', action='store_true',
                               help='Skip conflict detection')
+    create_parser.add_argument('-y', '--yes', action='store_true',
+                              help='Auto-confirm without prompts')
     create_parser.set_defaults(func=cmd_create_event)
     
     # Delete event
