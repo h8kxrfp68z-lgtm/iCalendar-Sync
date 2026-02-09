@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "openclaw-icalendar-sync"
-version = "2.1.1"
+version = "2.2.0"
 description = "Professional iCloud Calendar integration for OpenClaw agents"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -12,11 +12,12 @@ license = {text = "MIT"}
 authors = [
     {name = "Black_Temple", email = "contact@clawhub.ai"}
 ]
-keywords = ["openclaw", "calendar", "icloud", "caldav", "iphone", "scheduling", "ai-agent", "multi-agent"]
+keywords = ["openclaw", "calendar", "icloud", "caldav", "iphone", "scheduling", "ai-agent", "multi-agent", "security"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "Topic :: Office/Business :: Scheduling",
+    "Topic :: Security",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
@@ -30,6 +31,7 @@ dependencies = [
     "icalendar>=5.0.0",
     "pyyaml>=6.0",
     "python-dateutil>=2.8.0",
+    "keyring>=24.0.0",
 ]
 
 [project.optional-dependencies]
