@@ -1,14 +1,43 @@
 """
-Conflict Resolver - Find free slots and detect conflicts across multi-agent calendars
+Conflict Detection and Resolution Engine
+Security hardened version with DoS protection and timezone support.
 """
 
 import logging
-from typing import List, Dict, Tuple, Optional, Set
-from datetime import datetime, timedelta
+from datetime import datetime, date, time, timedelta
+from zoneinfo import ZoneInfo
+from typing import List, Dict, Optional, Tuple, Set
 from dataclasses import dataclass
-from collections import defaultdict
+from enum import Enum
 
 logger = logging.getLogger(__name__)
+
+# Security: DoS protection
+MAX_DATE_RANGE_DAYS = 365
+MAX_EVENTS_PER_CHECK = 1000
+
+
+class ConflictType(Enum):
+    """Types of calendar conflicts"""
+    HARD_CONFLICT = "hard_conflict"      # Direct time overlap
+    SOFT_CONFLICT = "soft_conflict"      # Adjacent events with no buffer
+    TRAVEL_CONFLICT = "travel_conflict"  # Not enough travel time
+
+
+@dataclass
+class WorkingHours:
+    """Working hours configuration"""
+    start: time
+    end: time
+    timezone: str = "UTC"
+    
+    def get_timezone(self) -> ZoneInfo:
+        """Get ZoneInfo object for timezone"""
+        try:
+            return ZoneInfo(self.timezone)
+        except Exception as e:
+            logger.warning(f"Invalid timezone {self.timezone}, falling back to UTC: {e}")
+            return ZoneInfo("UTC")
 
 
 @dataclass
@@ -18,6 +47,22 @@ class TimeSlot:
     end: datetime
     calendar: Optional[str] = None
     event_id: Optional[str] = None
+    timezone: str = "UTC"
+    
+    def __post_init__(self):
+        """Ensure datetimes are timezone-aware"""
+        tz = self._get_timezone()
+        if self.start.tzinfo is None:
+            self.start = self.start.replace(tzinfo=tz)
+        if self.end.tzinfo is None:
+            self.end = self.end.replace(tzinfo=tz)
+    
+    def _get_timezone(self) -> ZoneInfo:
+        """Get ZoneInfo object"""
+        try:
+            return ZoneInfo(self.timezone)
+        except Exception:
+            return ZoneInfo("UTC")
     
     def overlaps(self, other: "TimeSlot") -> bool:
         """Check if this slot overlaps with another"""
@@ -31,6 +76,19 @@ class TimeSlot:
     def duration(self) -> timedelta:
         """Get slot duration"""
         return self.end - self.start
+    
+    def __hash__(self):
+        """Make slot hashable for deduplication"""
+        return hash((self.start, self.end, self.calendar, self.event_id))
+    
+    def __eq__(self, other):
+        """Equality for deduplication"""
+        if not isinstance(other, TimeSlot):
+            return False
+        return (self.start == other.start and 
+                self.end == other.end and 
+                self.calendar == other.calendar and
+                self.event_id == other.event_id)
 
 
 @dataclass
@@ -41,6 +99,23 @@ class Conflict:
     calendars: List[str]
     severity: str = "warning"  # warning, error, critical
     
+    def __hash__(self):
+        """Make conflict hashable for deduplication"""
+        # Create deterministic hash regardless of event order
+        event_ids = tuple(sorted([e.get('id', str(e)) for e in self.events if e]))
+        return hash((self.time_slot, event_ids, tuple(sorted(self.calendars)), self.severity))
+    
+    def __eq__(self, other):
+        """Equality for deduplication"""
+        if not isinstance(other, Conflict):
+            return False
+        # Conflicts are equal if they involve same events regardless of order
+        self_ids = set(e.get('id', str(e)) for e in self.events if e)
+        other_ids = set(e.get('id', str(e)) for e in other.events if e)
+        return (self.time_slot == other.time_slot and 
+                self_ids == other_ids and
+                set(self.calendars) == set(other.calendars))
+    
     def __str__(self):
         return (
             f"Conflict: {len(self.events)} events overlap "
@@ -50,32 +125,34 @@ class Conflict:
 
 class ConflictResolver:
     """
-    Detect conflicts and find free slots across calendars
+    Detects and resolves scheduling conflicts
     
-    Features:
-    - Multi-calendar conflict detection
-    - Privacy-aware busy time checking
-    - Free slot finding with duration constraints
-    - Working hours consideration
+    Security features:
+    - DoS protection with MAX_DATE_RANGE_DAYS
+    - Timezone-aware datetime handling
+    - Event deduplication
     """
     
     def __init__(
         self,
-        working_hours_start: int = 9,
-        working_hours_end: int = 18,
+        working_hours: Optional[WorkingHours] = None,
         timezone: str = "UTC",
     ):
         """
         Initialize conflict resolver
         
         Args:
-            working_hours_start: Start of working hours (24h format)
-            working_hours_end: End of working hours (24h format)
+            working_hours: Optional working hours for boundary checks
             timezone: Timezone for calculations
         """
-        self.working_hours_start = working_hours_start
-        self.working_hours_end = working_hours_end
+        self.working_hours = working_hours or WorkingHours(
+            start=time(9, 0),
+            end=time(17, 0),
+            timezone=timezone
+        )
         self.timezone = timezone
+        self.min_buffer_minutes = 15  # Minimum buffer between events
+        self.travel_time_minutes = 30  # Default travel time
     
     def find_conflicts(
         self,
@@ -84,7 +161,7 @@ class ConflictResolver:
         end_date: datetime,
     ) -> List[Conflict]:
         """
-        Find all conflicts in events within date range
+        Find all conflicts in event list within date range
         
         Args:
             events: List of event dictionaries
@@ -92,9 +169,30 @@ class ConflictResolver:
             end_date: End of search range
         
         Returns:
-            List of detected conflicts
+            List of detected conflicts (deduplicated)
+            
+        Raises:
+            ValueError: If date range exceeds MAX_DATE_RANGE_DAYS
         """
-        conflicts = []
+        # Security: DoS protection
+        if isinstance(start_date, datetime) and isinstance(end_date, datetime):
+            date_range_days = (end_date - start_date).days
+        else:
+            date_range_days = (end_date - start_date).days if hasattr(start_date, 'days') else 0
+            
+        if date_range_days > MAX_DATE_RANGE_DAYS:
+            raise ValueError(
+                f"Date range ({date_range_days} days) exceeds maximum "
+                f"allowed ({MAX_DATE_RANGE_DAYS} days)"
+            )
+        
+        if len(events) > MAX_EVENTS_PER_CHECK:
+            logger.warning(
+                f"Event count ({len(events)}) exceeds recommended maximum "
+                f"({MAX_EVENTS_PER_CHECK}). Performance may be affected."
+            )
+        
+        conflicts: Set[Conflict] = set()  # Use set for automatic deduplication
         
         # Convert events to time slots
         slots = []
@@ -107,11 +205,17 @@ class ConflictResolver:
                 end=event["end"],
                 calendar=event.get("calendar"),
                 event_id=event.get("id"),
+                timezone=event.get("timezone", self.timezone)
             )
             
             # Only include slots in date range
             if slot.start < end_date and slot.end > start_date:
                 slots.append((slot, event))
+        
+        logger.info(
+            f"Checking {len(slots)} events for conflicts "
+            f"in range {start_date} to {end_date}"
+        )
         
         # Check each pair for overlaps
         for i, (slot1, event1) in enumerate(slots):
@@ -131,9 +235,11 @@ class ConflictResolver:
                     )),
                     severity=self._assess_severity(event1, overlapping),
                 )
-                conflicts.append(conflict)
+                conflicts.add(conflict)  # Set automatically deduplicates
         
-        return conflicts
+        conflicts_list = list(conflicts)
+        logger.info(f"Found {len(conflicts_list)} unique conflicts")
+        return conflicts_list
     
     def _assess_severity(
         self,
@@ -175,6 +281,14 @@ class ConflictResolver:
         Returns:
             List of free time slots
         """
+        # Security: DoS protection
+        date_range_days = (end_date - start_date).days
+        if date_range_days > MAX_DATE_RANGE_DAYS:
+            raise ValueError(
+                f"Date range ({date_range_days} days) exceeds maximum "
+                f"allowed ({MAX_DATE_RANGE_DAYS} days)"
+            )
+        
         required_duration = timedelta(minutes=duration_minutes)
         free_slots = []
         
@@ -197,6 +311,7 @@ class ConflictResolver:
                     slot = TimeSlot(
                         start=current_time,
                         end=busy_slot.start,
+                        timezone=self.timezone
                     )
                     
                     if only_working_hours:
@@ -215,7 +330,7 @@ class ConflictResolver:
             gap_duration = end_date - current_time
             
             if gap_duration >= required_duration:
-                slot = TimeSlot(start=current_time, end=end_date)
+                slot = TimeSlot(start=current_time, end=end_date, timezone=self.timezone)
                 
                 if only_working_hours:
                     free_slots.extend(
@@ -248,6 +363,7 @@ class ConflictResolver:
                 end=min(event["end"], end_date),
                 calendar=event.get("calendar"),
                 event_id=event.get("id"),
+                timezone=event.get("timezone", self.timezone)
             )
             
             # Only include if within date range
@@ -261,20 +377,30 @@ class ConflictResolver:
         slot: TimeSlot,
         min_duration: timedelta,
     ) -> List[TimeSlot]:
-        """Split time slot into working hour segments"""
+        """Split time slot into working hour segments with timezone support"""
         segments = []
+        tz = self.working_hours.get_timezone()
+        
         current_date = slot.start.date()
         end_date = slot.end.date()
         
+        # Security: Limit iteration range
+        days_diff = (end_date - current_date).days
+        if days_diff > MAX_DATE_RANGE_DAYS:
+            logger.warning(f"Date range too large in _split_by_working_hours, limiting to {MAX_DATE_RANGE_DAYS} days")
+            end_date = current_date + timedelta(days=MAX_DATE_RANGE_DAYS)
+        
         while current_date <= end_date:
-            # Working hours for this day
+            # Working hours for this day (timezone-aware)
             day_start = datetime.combine(
                 current_date,
-                datetime.min.time().replace(hour=self.working_hours_start)
+                self.working_hours.start,
+                tzinfo=tz
             )
             day_end = datetime.combine(
                 current_date,
-                datetime.min.time().replace(hour=self.working_hours_end)
+                self.working_hours.end,
+                tzinfo=tz
             )
             
             # Intersect with slot
@@ -288,6 +414,7 @@ class ConflictResolver:
                     segments.append(TimeSlot(
                         start=segment_start,
                         end=segment_end,
+                        timezone=self.timezone
                     ))
             
             current_date += timedelta(days=1)
@@ -334,6 +461,7 @@ class ConflictResolver:
                 merged[-1] = TimeSlot(
                     start=last.start,
                     end=max(last.end, slot.end),
+                    timezone=self.timezone
                 )
             else:
                 merged.append(slot)
@@ -364,6 +492,7 @@ class ConflictResolver:
             event_slot = TimeSlot(
                 start=event["start"],
                 end=event["end"],
+                timezone=event.get("timezone", self.timezone)
             )
             
             if proposed_slot.overlaps(event_slot):
