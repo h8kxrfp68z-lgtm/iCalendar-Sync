@@ -2,7 +2,7 @@
 Access Control Engine for Multi-Agent Calendar Management
 
 Implements role-based access control (RBAC) and agent permissions.
-Security hardened version.
+Security hardened version with case-insensitive calendar lookup.
 """
 
 import logging
@@ -36,8 +36,9 @@ class AgentPermissions:
     can_view_busy: bool = True  # Can see masked events as busy blocks
     
     def has_calendar_access(self, calendar_name: str) -> bool:
-        """Check if agent can access specific calendar"""
-        return calendar_name in self.calendars
+        """Check if agent can access specific calendar (case-insensitive)"""
+        normalized = calendar_name.strip().lower()
+        return normalized in [c.strip().lower() for c in self.calendars]
     
     def can_perform_action(self, action: str) -> bool:
         """Check if agent can perform action"""
@@ -84,6 +85,7 @@ class CalendarVault:
     - Path traversal protection
     - Configuration validation
     - Safe YAML/JSON loading
+    - Case-insensitive calendar name lookup
     """
     
     def __init__(self, config: Dict):
@@ -99,8 +101,21 @@ class CalendarVault:
         self.config = config
         self.agents: Dict[str, AgentPermissions] = {}
         self.calendars: Dict[str, Calendar] = {}
+        self._calendar_name_map: Dict[str, str] = {}  # lowercase -> original
         self._validate_config()
         self._load_configuration()
+    
+    def _normalize_calendar_name(self, name: str) -> str:
+        """
+        Normalize calendar name to lowercase for case-insensitive comparison
+        
+        Args:
+            name: Calendar name
+        
+        Returns:
+            Normalized (lowercase) calendar name
+        """
+        return name.strip().lower()
     
     def _validate_config(self):
         """Validate configuration structure"""
@@ -138,12 +153,16 @@ class CalendarVault:
                 raise ConfigValidationError(f"Calendar {i} has invalid privacy_level")
     
     def _load_configuration(self):
-        """Load agents and calendars from config"""
-        # Load agents
+        """Load agents and calendars from config with case-insensitive names"""
+        # Load agents (with normalized calendar names)
         for agent_data in self.config.get("agents", []):
+            normalized_calendars = [
+                self._normalize_calendar_name(cal) 
+                for cal in agent_data.get("calendars", [])
+            ]
             agent = AgentPermissions(
                 agent_id=agent_data["id"],
-                calendars=agent_data.get("calendars", []),
+                calendars=normalized_calendars,
                 can_create_events=agent_data.get("can_create_events", True),
                 can_edit_events=agent_data.get("can_edit_events", True),
                 can_delete_events=agent_data.get("can_delete_events", True),
@@ -152,16 +171,20 @@ class CalendarVault:
             self.agents[agent.agent_id] = agent
             logger.info(f"Loaded agent: {agent.agent_id} with access to {len(agent.calendars)} calendars")
         
-        # Load calendars
+        # Load calendars (with normalization)
         for cal_data in self.config.get("calendars", []):
+            original_name = cal_data["name"]
+            normalized_name = self._normalize_calendar_name(original_name)
+            
             calendar = Calendar(
-                name=cal_data["name"],
-                icloud_name=cal_data.get("icloud_name", cal_data["name"]),
+                name=normalized_name,
+                icloud_name=cal_data.get("icloud_name", original_name),
                 privacy_level=PrivacyLevel(cal_data.get("privacy_level", "shared")),
                 accessible_by=cal_data.get("accessible_by", []),
             )
-            self.calendars[calendar.name] = calendar
-            logger.info(f"Loaded calendar: {calendar.name} (privacy: {calendar.privacy_level.value})")
+            self.calendars[normalized_name] = calendar
+            self._calendar_name_map[normalized_name] = original_name
+            logger.info(f"Loaded calendar: {original_name} (privacy: {calendar.privacy_level.value})")
     
     @staticmethod
     def _validate_path(file_path: str, allowed_dir: Optional[str] = None) -> Path:
@@ -216,17 +239,19 @@ class CalendarVault:
         return self.agents[agent_id].calendars
     
     def can_access_calendar(self, agent_id: str, calendar_name: str) -> bool:
-        """Check if agent can access specific calendar"""
+        """Check if agent can access specific calendar (case-insensitive)"""
         if agent_id not in self.agents:
             return False
         
-        return self.agents[agent_id].has_calendar_access(calendar_name)
+        normalized_name = self._normalize_calendar_name(calendar_name)
+        return self.agents[agent_id].has_calendar_access(normalized_name)
     
     def get_icloud_calendar_name(self, calendar_name: str) -> Optional[str]:
-        """Get iCloud calendar name from vault calendar name"""
-        if calendar_name not in self.calendars:
+        """Get iCloud calendar name from vault calendar name (case-insensitive)"""
+        normalized_name = self._normalize_calendar_name(calendar_name)
+        if normalized_name not in self.calendars:
             return None
-        return self.calendars[calendar_name].icloud_name
+        return self.calendars[normalized_name].icloud_name
     
     def get_agent_permissions(self, agent_id: str) -> Optional[AgentPermissions]:
         """Get permissions for specific agent"""
@@ -253,7 +278,7 @@ class CalendarVault:
     
     def validate_access(self, agent_id: str, calendar_name: str, action: str) -> bool:
         """
-        Validate if agent can perform action on calendar
+        Validate if agent can perform action on calendar (case-insensitive)
         
         Args:
             agent_id: Agent identifier
@@ -268,8 +293,9 @@ class CalendarVault:
             logger.warning(f"Unknown agent: {agent_id}")
             return False
         
-        # Check calendar exists
-        if calendar_name not in self.calendars:
+        # Check calendar exists (case-insensitive)
+        normalized_name = self._normalize_calendar_name(calendar_name)
+        if normalized_name not in self.calendars:
             logger.warning(f"Unknown calendar: {calendar_name}")
             return False
         
