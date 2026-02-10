@@ -1,6 +1,6 @@
 #!/bin/bash
 # Installation script for iCalendar Sync skill
-# Security hardened version
+# Security hardened version with error handling
 
 set -e
 
@@ -17,7 +17,7 @@ if ! command -v python3 &> /dev/null; then
     exit 1
 fi
 
-python_version=$(python3 -c 'import sys; print("."join(map(str, sys.version_info[:2])))')
+python_version=$(python3 -c 'import sys; print(".".join(map(str, sys.version_info[:2])))')
 echo "✓ Python $python_version detected"
 
 # Validate Python version
@@ -37,9 +37,15 @@ echo "✓ Created skill directory: $SKILL_DIR"
 echo "📦 Copying skill files..."
 cp -r src/ requirements.txt skill.yaml setup.py README.md LICENSE "$SKILL_DIR/"
 
-# Install dependencies
+# Install dependencies with error checking
 echo "📥 Installing dependencies..."
-pip install -r "$SKILL_DIR/requirements.txt"
+if pip install -r "$SKILL_DIR/requirements.txt"; then
+    echo "✓ Dependencies installed successfully"
+else
+    echo "❌ Error: Failed to install dependencies"
+    echo "   Please check your Python environment and try again"
+    exit 1
+fi
 
 # Create CLI command directory
 mkdir -p "$HOME/.local/bin"
@@ -82,10 +88,18 @@ except ImportError:
     # python-dotenv not available, skip env loading
     pass
 
-# Run the actual script
+# Run the actual script with error handling
 if __name__ == '__main__':
-    from icalendar_sync import calendar
-    calendar.main()
+    try:
+        from icalendar_sync import calendar
+        calendar.main()
+    except ImportError as e:
+        print(f"Error: Could not import icalendar_sync module: {e}")
+        print("Please ensure the skill is properly installed.")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error: {e}")
+        sys.exit(1)
 EOF
 
 chmod +x "$HOME/.local/bin/icalendar-sync"
