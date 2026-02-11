@@ -2,7 +2,7 @@
 
 **Professional iCloud Calendar integration via CalDAV protocol**
 
-Version: 2.2.0 | Author: Black_Temple | License: MIT
+Version: 2.2.1 | Author: Black_Temple | License: MIT
 
 ---
 
@@ -10,7 +10,7 @@ Version: 2.2.0 | Author: Black_Temple | License: MIT
 
 This skill provides **core iCloud calendar sync functionality**. Please review what is included vs. what is mentioned in extended documentation:
 
-### ✅ Included in v2.2.0:
+### ✅ Included in v2.2.1:
 
 - **CalDAV Integration** - Bidirectional sync with iCloud calendars (calendar.py)
 - **Event Operations** - Create, read, update, delete calendar events
@@ -381,7 +381,7 @@ ISO 8601 with timezone:
 
 **Solutions**:
 1. List calendars: `python -m icalendar_sync.calendar list`
-2. Calendar names are case-insensitive in v2.2.0
+2. Calendar names are case-insensitive in v2.2.1
 3. Ensure calendar exists in iCloud web interface
 
 ### Rate Limit Exceeded
@@ -450,7 +450,7 @@ sudo apt-get install gnome-keyring  # or kwallet
 
 ## Performance
 
-### Benchmarks (Python 3.11, v2.2.0)
+### Benchmarks (Python 3.11, v2.2.1)
 
 | Operation | Average Time | Notes |
 |-----------|--------------|-------|
@@ -469,9 +469,14 @@ sudo apt-get install gnome-keyring  # or kwallet
 
 ## Changelog
 
-### v2.2.0 (2026-02-11)
+### v2.2.1 (2026-02-11)
 
-**Fixes:**
+**Version Update:**
+- 🔢 Bumped version to 2.2.1 across all files
+- 🔧 Synchronized setup.py, skill.yaml, pyproject.toml, __init__.py
+- 📝 Updated SKILL.md version references
+
+**Fixes (from v2.2.0):**
 - 🔧 Fixed setup.py version mismatch (2.1.0 → 2.2.0)
 - 🔧 Fixed skill.yaml metadata (env vars now marked required)
 - 🔧 Updated SKILL.md to reflect actual capabilities
@@ -526,4 +531,4 @@ SOFTWARE.
 
 **Made with ❤️ for OpenClaw Multi-Agent Framework**
 
-Version: 2.2.0 | Last Updated: February 11, 2026 | Status: Production Ready
+Version: 2.2.1 | Last Updated: February 11, 2026 | Status: Production Ready
