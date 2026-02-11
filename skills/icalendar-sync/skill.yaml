@@ -3,8 +3,8 @@ display_name: "iCalendar Sync"
 version: 2.2.0
 description: >
   Professional iCloud Calendar integration for OpenClaw.
-  Features enterprise-grade security, Zero Trust access control,
-  multi-agent isolation, and hardened against common vulnerabilities.
+  Provides bidirectional CalDAV sync with iCloud calendars.
+  Core functionality: create, read, update, delete calendar events.
 
 author: Black_Temple
 license: MIT
@@ -16,11 +16,10 @@ tags:
   - calendar
   - icloud
   - apple
+  - caldav
   - sync
   - productivity
-  - security
-  - multi-agent
-  - zero-trust
+  - scheduling
 
 runtime:
   type: python
@@ -33,16 +32,17 @@ dependencies:
     - pyyaml>=6.0
     - python-dateutil>=2.8.0
     - keyring>=24.0.0
+    - python-dotenv>=1.0.0
 
 environment:
   - name: ICLOUD_USERNAME
     description: "Apple ID email address (e.g., name@icloud.com)"
-    required: true
+    required: true  # FIXED: was missing
     placeholder: "user@icloud.com"
   
   - name: ICLOUD_APP_PASSWORD
-    description: "App-Specific Password from appleid.apple.com (fallback if keyring unavailable)"
-    required: false
+    description: "App-Specific Password from appleid.apple.com (stored in system keyring, this is fallback only)"
+    required: true  # FIXED: was missing  
     secure: true
     placeholder: "xxxx-xxxx-xxxx-xxxx"
   
@@ -57,143 +57,38 @@ environment:
     default: "INFO"
 
 security:
-  features:
-    - credential_storage: "System keyring with fallback to encrypted env"
-    - input_validation: "All user inputs sanitized and validated"
-    - rate_limiting: "10 calls per 60 seconds to prevent API abuse"
-    - path_traversal_protection: "File paths validated and restricted"
-    - injection_protection: "Calendar names and text fields sanitized"
-    - ssl_verification: "Enforced for all CalDAV connections"
-    - sensitive_data_filtering: "Credentials filtered from logs"
-    - thread_safe: "Connection caching with thread locks"
+  credential_storage: "System keyring (macOS Keychain, Windows Credential Manager, Linux Secret Service) with plaintext .env fallback"
+  input_validation: true
+  rate_limiting: "10 calls per 60 seconds"
+  ssl_verification: true
+  sensitive_data_filtering: true
 
 capabilities:
-  agent_aware: true
-  supports_isolation: true
-  security_model: "zero-trust"
-  acl_version: "2.0"
-
+  agent_aware: false
+  supports_isolation: false
+  
 commands:
-  - name: create_event
-    description: Create a new calendar event with conflict detection
-    schema:
-      type: object
-      required: [summary, start, end]
-      properties:
-        summary:
-          type: string
-          description: "Event title (max 500 chars)"
-          maxLength: 500
-        start:
-          type: string
-          description: "ISO 8601 datetime (e.g., 2026-02-10T14:00:00+03:00)"
-        end:
-          type: string
-          description: "ISO 8601 datetime (e.g., 2026-02-10T15:00:00+03:00)"
-        description:
-          type: string
-          description: "Event details (max 5000 chars, optional)"
-          maxLength: 5000
-        location:
-          type: string
-          description: "Event location (max 500 chars, optional)"
-          maxLength: 500
-        attendees:
-          type: array
-          items:
-            type: string
-          description: "List of attendee emails (optional)"
-        alarms:
-          type: array
-          items:
-            type: object
-            properties:
-              minutes:
-                type: integer
-                description: "Minutes before event to trigger alarm"
-              description:
-                type: string
-                description: "Alarm description"
-          description: "List of alarms (optional)"
-        rrule:
-          type: object
-          properties:
-            freq:
-              type: string
-              enum: [DAILY, WEEKLY, MONTHLY, YEARLY]
-              description: "Recurrence frequency"
-            interval:
-              type: integer
-              description: "Interval between occurrences"
-            count:
-              type: integer
-              description: "Number of occurrences"
-            until:
-              type: string
-              description: "End date for recurrence (ISO 8601)"
-            byday:
-              type: array
-              items:
-                type: string
-              description: "Days of week (e.g., MO, TU, WE)"
-          description: "Recurrence rule (optional)"
-        check_conflicts:
-          type: boolean
-          default: true
-          description: "Check for conflicting events"
-    usage: "create_event <calendar> <json_data> [--yes]"
+  - name: list
+    description: List accessible iCloud calendars
+    usage: "icalendar-sync list"
+    permissions: [read]
+  
+  - name: get
+    description: Sync and retrieve calendar events
+    usage: "icalendar-sync get --calendar <name> [--days 7]"
+    permissions: [read]
+  
+  - name: create
+    description: Create a new calendar event
+    usage: "icalendar-sync create --calendar <name> --json <data>"
     permissions: [create]
   
-  - name: get_events
-    description: Sync and retrieve calendar events
-    schema:
-      type: object
-      required: [calendar]
-      properties:
-        calendar:
-          type: string
-          description: "Calendar name (alphanumeric, spaces, hyphens, underscores)"
-          pattern: "^[a-zA-Z0-9\\s_-]+$"
-          maxLength: 255
-        days_ahead:
-          type: integer
-          default: 7
-          minimum: 1
-          maximum: 365
-          description: "Number of days to look ahead"
-    usage: "get_events <calendar> [--days 7]"
-    permissions: [read]
-  
-  - name: delete_event
+  - name: delete
     description: Remove event from calendar
-    schema:
-      type: object
-      required: [calendar, uid]
-      properties:
-        calendar:
-          type: string
-          description: "Calendar name"
-          pattern: "^[a-zA-Z0-9\\s_-]+$"
-          maxLength: 255
-        uid:
-          type: string
-          description: "Event UID"
-          maxLength: 500
-    usage: "delete_event <calendar> <uid>"
+    usage: "icalendar-sync delete --calendar <name> --uid <uid>"
     permissions: [delete]
   
-  - name: list_calendars
-    description: List accessible iCloud calendars
-    schema:
-      type: object
-      properties: {}
-    usage: "list_calendars"
-    permissions: [read]
-  
   - name: setup
-    description: Configure iCloud credentials interactively (stores in system keyring)
-    schema:
-      type: object
-      properties: {}
-    usage: "setup"
+    description: Configure iCloud credentials interactively
+    usage: "icalendar-sync setup"
     permissions: [admin]

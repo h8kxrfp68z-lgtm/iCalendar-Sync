@@ -16,7 +16,7 @@ else:
 
 setup(
     name="openclaw-icalendar-sync",
-    version="2.1.0",
+    version="2.2.0",  # Updated to match metadata
     author="Black_Temple",
     author_email="contact@clawhub.ai",
     description="Professional iCloud Calendar integration for OpenClaw agents",
@@ -25,7 +25,7 @@ setup(
     url="https://github.com/h8kxrfp68z-lgtm/OpenClaw",
     project_urls={
         "Bug Tracker": "https://github.com/h8kxrfp68z-lgtm/OpenClaw/issues",
-        "Documentation": "https://github.com/h8kxrfp68z-lgtm/OpenClaw/tree/feature/icalendar-sync/skills/icalendar-sync",
+        "Documentation": "https://github.com/h8kxrfp68z-lgtm/OpenClaw/tree/skills/skills/icalendar-sync",
     },
     package_dir={"": "src"},
     packages=find_packages(where="src"),
@@ -46,6 +46,8 @@ setup(
         "icalendar>=5.0.0",
         "pyyaml>=6.0",
         "python-dateutil>=2.8.0",
+        "keyring>=24.0.0",
+        "python-dotenv>=1.0.0",
     ],
     entry_points={
         "console_scripts": [
