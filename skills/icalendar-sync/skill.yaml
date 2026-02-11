@@ -1,6 +1,6 @@
 name: icalendar-sync
 display_name: "iCalendar Sync"
-version: 2.2.0
+version: 2.2.1
 description: >
   Professional iCloud Calendar integration for OpenClaw.
   Provides bidirectional CalDAV sync with iCloud calendars.
@@ -37,12 +37,12 @@ dependencies:
 environment:
   - name: ICLOUD_USERNAME
     description: "Apple ID email address (e.g., name@icloud.com)"
-    required: true  # FIXED: was missing
+    required: true
     placeholder: "user@icloud.com"
   
   - name: ICLOUD_APP_PASSWORD
     description: "App-Specific Password from appleid.apple.com (stored in system keyring, this is fallback only)"
-    required: true  # FIXED: was missing  
+    required: true
     secure: true
     placeholder: "xxxx-xxxx-xxxx-xxxx"
   
