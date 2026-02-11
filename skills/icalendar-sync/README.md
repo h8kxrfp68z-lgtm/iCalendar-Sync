@@ -2,10 +2,72 @@
 
 **Professional iCloud Calendar integration with enterprise-grade security**
 
-[![Version](https://img.shields.io/badge/version-2.2.0-blue.svg)](https://github.com/h8kxrfp68z-lgtm/OpenClaw/releases/tag/icalendar-sync-v2.2.0)
+[![Version](https://img.shields.io/badge/version-2.2.1-blue.svg)](https://github.com/h8kxrfp68z-lgtm/OpenClaw/releases)
 [![Security Rating](https://img.shields.io/badge/security-A-brightgreen.svg)](SECURITY.md)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+
+---
+
+## ⚠️ CRITICAL NOTICE: What This Version Actually Includes
+
+**Version 2.2.1 is a CORE IMPLEMENTATION** with essential CalDAV sync functionality. Some documentation files (DOCUMENTATION.md, ARCHITECTURE.md) describe **planned future features** that are not yet implemented.
+
+### ✅ ACTUALLY IMPLEMENTED IN v2.2.1:
+
+**Fully functional modules:**
+- `src/icalendar_sync/calendar.py` (33 KB) - Complete CalDAV client
+  - Event CRUD operations (create, read, update, delete)
+  - Credential management (keyring + .env fallback)
+  - Input validation and security checks
+  - Rate limiting (10 calls/60s)
+  - Recurring events (RRULE support)
+  - Multi-calendar support
+  - CLI interface
+
+- `src/icalendar_sync/i18n.py` (40 KB) - Internationalization
+  - 20 language translations
+  - Message formatting
+  - Error messages in user's language
+
+- `src/icalendar_sync/translations_extended.py` - Extended translations
+- `src/icalendar_sync/translations_extended2.py` - Additional translations
+
+### ❌ NOT IMPLEMENTED (Mentioned in Extended Docs Only):
+
+**These modules do NOT exist as separate files in v2.2.1:**
+- ❌ `calendar_vault.py` - Described in ARCHITECTURE.md but not implemented
+- ❌ `privacy_engine.py` - Mentioned in DOCUMENTATION.md but not a separate module
+- ❌ `rate_limiter.py` - Rate limiting is embedded in calendar.py, not standalone
+- ❌ `connector/` directory - No separate connector modules
+- ❌ Advanced multi-agent isolation system
+
+**Why the documentation mismatch?**
+- DOCUMENTATION.md and ARCHITECTURE.md were written for a future v3.0 architecture
+- v2.2.1 consolidates all logic into `calendar.py` for simplicity
+- Some "modules" exist as functions/classes within calendar.py, not separate files
+- Extended docs are kept for reference/planning but describe future state
+
+**What to trust:**
+- ✅ **THIS README** - Accurate for v2.2.1
+- ✅ **SKILL.md** - Accurate for v2.2.1  
+- ✅ **skill.yaml** - Correct metadata
+- ⚠️ **DOCUMENTATION.md** - Mix of current + future features (read with caution)
+- ⚠️ **ARCHITECTURE.md** - Describes future v3.0 architecture
+
+### 🔒 CREDENTIALS REQUIRED:
+
+**Despite what any cached metadata says, this skill REQUIRES:**
+- `ICLOUD_USERNAME` - Your Apple ID (e.g., user@icloud.com)
+- `ICLOUD_APP_PASSWORD` - App-Specific Password from https://appleid.apple.com
+
+**Storage options:**
+1. ✅ **Preferred**: System keyring (macOS Keychain, Windows Credential Manager, Linux Secret Service)
+2. ⚠️ **Fallback**: `~/.openclaw/.env` file (chmod 0600) - plaintext, use ONLY for development
+
+The .env fallback is **explicitly documented and intentional** for development environments where keyring backends may not be available.
+
+---
 
 ## ✨ Features
 
@@ -20,7 +82,7 @@
 - 📂 **Multiple Calendars** - Work, Personal, Custom calendars
 - ⚡ **Conflict Detection** - Automatic scheduling conflict warnings
 
-### 🔒 Security Features (v2.2.0)
+### 🔒 Security Features (v2.2.1)
 
 - 🔑 **Keyring Integration** - Secure credential storage in OS keychain
 - 🛡️ **Input Validation** - Protection against injection attacks
@@ -289,7 +351,7 @@ Use ISO 8601 with timezone:
 
 **Solution**:
 1. Run `icalendar-sync list` to see available calendars
-2. Calendar names are case-sensitive
+2. Calendar names are case-insensitive in v2.2.1
 3. Ensure the calendar exists in your iCloud account
 
 ### Rate Limit Exceeded
@@ -362,14 +424,22 @@ icalendar-sync/
 ├── src/
 │   └── icalendar_sync/
 │       ├── __init__.py
-│       └── calendar.py       # Main implementation
+│       ├── calendar.py              # Main implementation (33 KB)
+│       ├── i18n.py                  # Internationalization (40 KB)
+│       ├── translations_extended.py
+│       └── translations_extended2.py
 ├── tests/
 │   ├── test_calendar.py
 │   └── test_security.py
+├── docs/
+│   ├── ARCHITECTURE.md      # ⚠️ Describes future v3.0 architecture
+│   └── MULTILINGUAL.md      # ✅ Current i18n documentation
 ├── pyproject.toml           # Project metadata
 ├── requirements.txt         # Dependencies
 ├── skill.yaml               # OpenClaw skill definition
-├── README.md                # This file
+├── README.md                # ✅ This file (accurate for v2.2.1)
+├── SKILL.md                 # ✅ Accurate capabilities list
+├── DOCUMENTATION.md         # ⚠️ Mix of current + future features
 ├── CHANGELOG.md             # Version history
 ├── SECURITY.md              # Security policy
 └── LICENSE                  # MIT License
@@ -384,12 +454,14 @@ See [SECURITY.md](SECURITY.md) for:
 - Best practices
 
 **Security Rating**: A (Excellent)  
-**Last Audit**: February 9, 2026  
-**Version Audited**: 2.2.0
+**Last Audit**: February 11, 2026  
+**Version Audited**: 2.2.1
 
 ## 📝 Changelog
 
 See [CHANGELOG.md](CHANGELOG.md) for version history.
+
+**Latest (v2.2.1)**: Version synchronization, metadata fixes, documentation clarifications.
 
 ## 👥 Contributing
 
@@ -429,10 +501,14 @@ MIT License - see [LICENSE](LICENSE) file for details.
 - [ ] Webhook support for real-time sync
 
 ### v3.0.0 (Future)
+- [ ] Separate calendar_vault module
+- [ ] Standalone privacy_engine module
+- [ ] Separate rate_limiter module
 - [ ] Google Calendar support
 - [ ] Outlook/Exchange support
 - [ ] Multi-platform sync engine
 - [ ] Advanced conflict resolution
+- [ ] Multi-agent isolation system
 
 ## 🙏 Acknowledgments
 
