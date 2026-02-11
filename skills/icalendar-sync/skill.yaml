@@ -1,10 +1,23 @@
+# =============================================================================
+# iCalendar Sync v2.2.3 - OpenClaw Skill Definition
+# =============================================================================
+# 
+# CRITICAL: This skill REQUIRES credentials:
+#   - ICLOUD_USERNAME (Apple ID email)
+#   - ICLOUD_APP_PASSWORD (App-Specific Password from appleid.apple.com)
+# 
+# Despite what any cached metadata shows, these are REQUIRED (see line 33-46).
+# =============================================================================
+
 name: icalendar-sync
 display_name: "iCalendar Sync"
-version: 2.2.2
+version: 2.2.3
 description: >
   Professional iCloud Calendar integration for OpenClaw.
   Provides bidirectional CalDAV sync with iCloud calendars.
   Core functionality: create, read, update, delete calendar events.
+  
+  REQUIRES: ICLOUD_USERNAME and ICLOUD_APP_PASSWORD (see environment section below).
 
 author: Black_Temple
 license: MIT
@@ -34,6 +47,9 @@ dependencies:
     - keyring>=24.0.0
     - python-dotenv>=1.0.0
 
+# =============================================================================
+# CREDENTIALS: These are REQUIRED despite any cached metadata saying "none"
+# =============================================================================
 environment:
   - name: ICLOUD_USERNAME
     description: "Apple ID email address (e.g., name@icloud.com)"
@@ -56,17 +72,26 @@ environment:
     required: false
     default: "INFO"
 
+# =============================================================================
+# SECURITY
+# =============================================================================
 security:
-  credential_storage: "System keyring (macOS Keychain, Windows Credential Manager, Linux Secret Service) with plaintext .env fallback"
+  credential_storage: "System keyring (macOS Keychain, Windows Credential Manager, Linux Secret Service) with plaintext .env fallback for development only"
   input_validation: true
   rate_limiting: "10 calls per 60 seconds"
   ssl_verification: true
   sensitive_data_filtering: true
 
+# =============================================================================
+# CAPABILITIES
+# =============================================================================
 capabilities:
   agent_aware: false
   supports_isolation: false
-  
+
+# =============================================================================
+# COMMANDS
+# =============================================================================  
 commands:
   - name: list
     description: List accessible iCloud calendars
