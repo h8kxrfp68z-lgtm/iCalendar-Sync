@@ -2,7 +2,7 @@
 
 **Professional iCloud Calendar integration with enterprise-grade security**
 
-[![Version](https://img.shields.io/badge/version-2.2.1-blue.svg)](https://github.com/h8kxrfp68z-lgtm/OpenClaw/releases)
+[![Version](https://img.shields.io/badge/version-2.2.2-blue.svg)](https://github.com/h8kxrfp68z-lgtm/OpenClaw/releases)
 [![Security Rating](https://img.shields.io/badge/security-A-brightgreen.svg)](SECURITY.md)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
@@ -11,9 +11,9 @@
 
 ## ⚠️ CRITICAL NOTICE: What This Version Actually Includes
 
-**Version 2.2.1 is a CORE IMPLEMENTATION** with essential CalDAV sync functionality. Some documentation files (DOCUMENTATION.md, ARCHITECTURE.md) describe **planned future features** that are not yet implemented.
+**Version 2.2.2 is a CORE IMPLEMENTATION** with essential CalDAV sync functionality. Some documentation files (DOCUMENTATION.md, ARCHITECTURE.md) describe **planned future features** that are not yet implemented.
 
-### ✅ ACTUALLY IMPLEMENTED IN v2.2.1:
+### ✅ ACTUALLY IMPLEMENTED IN v2.2.2:
 
 **Fully functional modules:**
 - `src/icalendar_sync/calendar.py` (33 KB) - Complete CalDAV client
@@ -35,7 +35,7 @@
 
 ### ❌ NOT IMPLEMENTED (Mentioned in Extended Docs Only):
 
-**These modules do NOT exist as separate files in v2.2.1:**
+**These modules do NOT exist as separate files in v2.2.2:**
 - ❌ `calendar_vault.py` - Described in ARCHITECTURE.md but not implemented
 - ❌ `privacy_engine.py` - Mentioned in DOCUMENTATION.md but not a separate module
 - ❌ `rate_limiter.py` - Rate limiting is embedded in calendar.py, not standalone
@@ -44,13 +44,13 @@
 
 **Why the documentation mismatch?**
 - DOCUMENTATION.md and ARCHITECTURE.md were written for a future v3.0 architecture
-- v2.2.1 consolidates all logic into `calendar.py` for simplicity
+- v2.2.2 consolidates all logic into `calendar.py` for simplicity
 - Some "modules" exist as functions/classes within calendar.py, not separate files
 - Extended docs are kept for reference/planning but describe future state
 
 **What to trust:**
-- ✅ **THIS README** - Accurate for v2.2.1
-- ✅ **SKILL.md** - Accurate for v2.2.1  
+- ✅ **THIS README** - Accurate for v2.2.2
+- ✅ **SKILL.md** - Accurate for v2.2.2  
 - ✅ **skill.yaml** - Correct metadata
 - ⚠️ **DOCUMENTATION.md** - Mix of current + future features (read with caution)
 - ⚠️ **ARCHITECTURE.md** - Describes future v3.0 architecture
@@ -82,7 +82,7 @@ The .env fallback is **explicitly documented and intentional** for development e
 - 📂 **Multiple Calendars** - Work, Personal, Custom calendars
 - ⚡ **Conflict Detection** - Automatic scheduling conflict warnings
 
-### 🔒 Security Features (v2.2.1)
+### 🔒 Security Features (v2.2.2)
 
 - 🔑 **Keyring Integration** - Secure credential storage in OS keychain
 - 🛡️ **Input Validation** - Protection against injection attacks
@@ -351,7 +351,7 @@ Use ISO 8601 with timezone:
 
 **Solution**:
 1. Run `icalendar-sync list` to see available calendars
-2. Calendar names are case-insensitive in v2.2.1
+2. Calendar names are case-insensitive in v2.2.2
 3. Ensure the calendar exists in your iCloud account
 
 ### Rate Limit Exceeded
@@ -437,7 +437,7 @@ icalendar-sync/
 ├── pyproject.toml           # Project metadata
 ├── requirements.txt         # Dependencies
 ├── skill.yaml               # OpenClaw skill definition
-├── README.md                # ✅ This file (accurate for v2.2.1)
+├── README.md                # ✅ This file (accurate for v2.2.2)
 ├── SKILL.md                 # ✅ Accurate capabilities list
 ├── DOCUMENTATION.md         # ⚠️ Mix of current + future features
 ├── CHANGELOG.md             # Version history
@@ -455,13 +455,13 @@ See [SECURITY.md](SECURITY.md) for:
 
 **Security Rating**: A (Excellent)  
 **Last Audit**: February 11, 2026  
-**Version Audited**: 2.2.1
+**Version Audited**: 2.2.2
 
 ## 📝 Changelog
 
 See [CHANGELOG.md](CHANGELOG.md) for version history.
 
-**Latest (v2.2.1)**: Version synchronization, metadata fixes, documentation clarifications.
+**Latest (v2.2.2)**: Documentation updates, ClawHub security scan fixes, comprehensive disclaimers.
 
 ## 👥 Contributing
 
