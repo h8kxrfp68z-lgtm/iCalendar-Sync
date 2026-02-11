@@ -1,6 +1,6 @@
 name: icalendar-sync
 display_name: "iCalendar Sync"
-version: 2.2.1
+version: 2.2.2
 description: >
   Professional iCloud Calendar integration for OpenClaw.
   Provides bidirectional CalDAV sync with iCloud calendars.
