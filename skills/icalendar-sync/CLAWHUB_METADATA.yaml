@@ -1,9 +1,9 @@
-# ClawHub Metadata for iCalendar Sync v2.2.3
+# ClawHub Metadata for iCalendar Sync v2.2.4
 # This file explicitly declares all credentials and configuration requirements
 # for ClawHub security scanning systems.
 
 skill_name: icalendar-sync
-version: 2.2.3
+version: 2.2.4
 author: Black_Temple
 
 # CRITICAL: This skill REQUIRES these credentials
@@ -82,39 +82,53 @@ file_system_changes:
     conditional: "Only if system keyring is not available"
     security_risk: "Stores credentials in plaintext"
 
-# Module implementation status
+# Module implementation status (v2.2.4)
 actual_implementation:
+  # ONLY these files exist in skills/icalendar-sync/src/icalendar_sync/
   included_modules:
-    - "src/icalendar_sync/calendar.py (33 KB) - Core CalDAV client"
-    - "src/icalendar_sync/i18n.py (40 KB) - Internationalization"
-    - "src/icalendar_sync/translations_extended.py"
-    - "src/icalendar_sync/translations_extended2.py"
+    - "calendar.py (33 KB) - Core CalDAV client with all functionality"
+    - "i18n.py (40 KB) - Internationalization for 20 languages"
+    - "translations_extended.py (14 KB) - Extended translations"
+    - "translations_extended2.py (14 KB) - Additional translations"
+    - "__init__.py (343 bytes) - Package initialization"
     
+  # These do NOT exist as separate module files anywhere in the repository
   not_implemented_as_separate_modules:
-    - "calendar_vault.py - Logic embedded in calendar.py"
-    - "privacy_engine.py - Basic filtering in calendar.py"
-    - "rate_limiter.py - Rate limiting in calendar.py"
-    - "connector/ - No separate connector directory"
+    - "calendar_vault/ - NO directory with this name exists"
+    - "calendar_vault/access_control.py - Does NOT exist"
+    - "calendar_vault/conflict_resolver.py - Does NOT exist"
+    - "calendar_vault/privacy_engine.py - Does NOT exist"
+    - "rate_limiter.py - Does NOT exist (logic embedded in calendar.py)"
+    - "connector/ - Does NOT exist"
+    
+  # v2.2.4 fix: Removed duplicate src/ directory from repository root
+  repository_cleanup:
+    removed_in_v2_2_4:
+      - "src/ (entire directory at repository root)"
+      - "src/icalendar_sync/calendar_vault/ (old duplicate structure)"
+    reason: "Duplicate src/ tree caused ClawHub scanner confusion - docs said 'not implemented' but old files existed at wrong path"
     
   documentation_status:
-    accurate:
+    accurate_for_v2_2_4:
       - "README.md"
       - "SKILL.md"
       - "skill.yaml"
       - "CLAWHUB_METADATA.yaml (this file)"
+      - "SECURITY_SCAN_NOTICE.md"
     mixed_current_and_future:
-      - "DOCUMENTATION.md (describes v3.0 architecture)"
+      - "DOCUMENTATION.md (describes future v3.0 architecture)"
       - "docs/ARCHITECTURE.md (future v3.0 design)"
 
 # Why metadata might show 'none' for credentials
 metadata_inconsistency_explanation: |
   ClawHub security scanner may be reading from a cached source or a different
-  registry metadata file that predates our fixes. The CURRENT state is:
+  registry metadata file that predates our fixes. The CURRENT state (v2.2.4) is:
   
-  - skill.yaml (v2.2.3): Correctly declares ICLOUD_USERNAME and ICLOUD_APP_PASSWORD as required: true
+  - skill.yaml: Correctly declares ICLOUD_USERNAME and ICLOUD_APP_PASSWORD as required: true (lines 33-46)
   - This file (CLAWHUB_METADATA.yaml): Explicitly declares all credentials
   - README.md: Contains CRITICAL NOTICE about credential requirements
   - SKILL.md: Contains Security Notice about credentials
+  - SECURITY_SCAN_NOTICE.md: Comprehensive explanation of all concerns
   
   If ClawHub still shows "required env vars: none", this is a cache/indexing
   issue on ClawHub's side, NOT an issue with our skill package.

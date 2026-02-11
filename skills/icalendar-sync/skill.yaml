@@ -1,5 +1,5 @@
 # =============================================================================
-# iCalendar Sync v2.2.3 - OpenClaw Skill Definition
+# iCalendar Sync v2.2.4 - OpenClaw Skill Definition
 # =============================================================================
 # 
 # CRITICAL: This skill REQUIRES credentials:
@@ -11,7 +11,7 @@
 
 name: icalendar-sync
 display_name: "iCalendar Sync"
-version: 2.2.3
+version: 2.2.4
 description: >
   Professional iCloud Calendar integration for OpenClaw.
   Provides bidirectional CalDAV sync with iCloud calendars.
