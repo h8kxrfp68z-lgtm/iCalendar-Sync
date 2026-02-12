@@ -1,5 +1,5 @@
 # =============================================================================
-# iCalendar Sync v2.2.4 - OpenClaw Skill Definition
+# iCalendar Sync v2.2.5 - OpenClaw Skill Definition
 # =============================================================================
 # 
 # CRITICAL: This skill REQUIRES credentials:
@@ -7,17 +7,24 @@
 #   - ICLOUD_APP_PASSWORD (App-Specific Password from appleid.apple.com)
 # 
 # Despite what any cached metadata shows, these are REQUIRED (see line 33-46).
+# 
+# NEW in v2.2.5:
+#   - Cyrillic calendar names support (Личный, Работа, etc.)
+#   - Headless setup: icalendar-sync setup --username X --password Y
+#   - Module execution: python -m icalendar_sync
 # =============================================================================
 
 name: icalendar-sync
 display_name: "iCalendar Sync"
-version: 2.2.4
+version: 2.2.5
 description: >
   Professional iCloud Calendar integration for OpenClaw.
   Provides bidirectional CalDAV sync with iCloud calendars.
   Core functionality: create, read, update, delete calendar events.
   
   REQUIRES: ICLOUD_USERNAME and ICLOUD_APP_PASSWORD (see environment section below).
+  
+  v2.2.5 adds Cyrillic support and headless configuration.
 
 author: Black_Temple
 license: MIT
@@ -33,6 +40,8 @@ tags:
   - sync
   - productivity
   - scheduling
+  - russian
+  - cyrillic
 
 runtime:
   type: python
@@ -114,6 +123,6 @@ commands:
     permissions: [delete]
   
   - name: setup
-    description: Configure iCloud credentials interactively
-    usage: "icalendar-sync setup"
+    description: Configure iCloud credentials interactively or via CLI
+    usage: "icalendar-sync setup [--username EMAIL] [--password PWD] [--non-interactive]"
     permissions: [admin]
