@@ -2,7 +2,7 @@
 
 **Professional iCloud Calendar integration with enterprise-grade security**
 
-[![Version](https://img.shields.io/badge/version-2.2.7-blue.svg)](https://github.com/h8kxrfp68z-lgtm/OpenClaw/releases)
+[![Version](https://img.shields.io/badge/version-2.2.10-blue.svg)](https://github.com/h8kxrfp68z-lgtm/OpenClaw/releases)
 [![Security Rating](https://img.shields.io/badge/security-A-brightgreen.svg)](SECURITY.md)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
@@ -10,12 +10,12 @@
 
 ---
 
-## 🎉 New in v2.2.7 (Feb 12, 2026)
+## 🎉 New in v2.2.10 (Feb 12, 2026)
 
-- **🔒 Security Hardening**: Fixed metadata inconsistencies and enhanced credential handling documentation
-- **⚠️ Explicit Requirements**: ICLOUD_USERNAME and ICLOUD_APP_PASSWORD now explicitly declared in registry metadata
-- **📋 Comprehensive Guidelines**: Enhanced SKILL.md with security warnings for CLI/Docker credential handling
-- **✅ ClawHub Compliance**: Addressed all security scan findings with detailed remediation steps
+- **✅ Complete Metadata Coverage**: Added 4 metadata formats (.clawhub.yaml, CLAWHUB_METADATA.yaml, skill.yaml, metadata.yaml)
+- **🔒 Registry-Level Declarations**: Explicitly declared required_env_vars in ClawHub registry metadata
+- **📦 Unified Versioning**: All files synchronized to v2.2.10 for consistency
+- **🎯 ClawHub Security Scan**: Final fix for "metadata_env_mismatch" and "missing_registry_env_declaration" issues
 
 [See full CHANGELOG](CHANGELOG.md) | [Security Scan Response](SECURITY_SCAN_NOTICE.md)
 
@@ -23,11 +23,11 @@
 
 ## ⚠️ CRITICAL NOTICE: What This Version Actually Includes
 
-**Version 2.2.6 is the SECURITY-HARDENED RELEASE** of our core CalDAV sync functionality. Some documentation files (DOCUMENTATION.md, ARCHITECTURE.md) describe **planned future features** that are not yet implemented.
+**Version 2.2.10 is the COMPLETE METADATA RELEASE** with full ClawHub compatibility. Some documentation files (DOCUMENTATION.md, ARCHITECTURE.md) describe **planned future features** that are not yet implemented.
 
 **IMPORTANT: See SECURITY_SCAN_NOTICE.md for detailed responses to ClawHub security scan concerns.**
 
-### ✅ ACTUALLY IMPLEMENTED IN v2.2.6:
+### ✅ ACTUALLY IMPLEMENTED IN v2.2.10:
 
 **Fully functional modules:**
 - `src/icalendar_sync/calendar.py` (33 KB) - Complete CalDAV client

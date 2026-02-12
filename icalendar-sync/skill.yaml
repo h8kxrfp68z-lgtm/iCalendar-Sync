@@ -1,40 +1,41 @@
 # =============================================================================
-# iCalendar Sync v2.2.9 - OpenClaw Skill Definition
+# iCalendar Sync v2.2.10 - OpenClaw Skill Definition
 # =============================================================================
-# 
+#
 # CRITICAL: This skill REQUIRES credentials:
 #   - ICLOUD_USERNAME (Apple ID email)
 #   - ICLOUD_APP_PASSWORD (App-Specific Password from appleid.apple.com)
-# 
-# These are explicitly declared as REQUIRED (see line 33-46).
-# 
-# NEW in v2.2.9:
+#
+# These are explicitly declared as REQUIRED in ALL metadata files.
+#
+# NEW in v2.2.10:
+#   - Complete metadata coverage: Added .clawhub.yaml for registry-level declarations
+#   - Added metadata.yaml with alternative format
+#   - Unified version across all files (2.2.10)
+#   - Final fix for ClawHub "metadata_env_mismatch" security scan
+#
+# From v2.2.9:
 #   - Added explicit branch: skills to metadata for ClawHub indexing
+#   - Multiple metadata formats for maximum compatibility
 #
 # From v2.2.8:
 #   - Simplified CLAWHUB_METADATA.yaml (30 lines vs 160)
 #   - Fixed ClawHub security scan "metadata_env_mismatch" issue
 #   - Explicitly declared required_env_vars at top level
-#
-# From v2.2.7:
-#   - Security hardening: Fixed metadata inconsistencies
-#   - Explicit credential declarations in registry
-#   - Cyrillic calendar names support
-#   - Headless setup: icalendar-sync setup --username X --password Y
 # =============================================================================
 
 
 name: icalendar-sync
 display_name: "iCalendar Sync"
-version: 2.2.9
+version: 2.2.10
 description: >
   Professional iCloud Calendar integration for OpenClaw.
   Provides bidirectional CalDAV sync with iCloud calendars.
   Core functionality: create, read, update, delete calendar events.
-  
+
   REQUIRES: ICLOUD_USERNAME and ICLOUD_APP_PASSWORD (see environment section below).
-  
-  v2.2.8 fixes ClawHub metadata inconsistency issue.
+
+  v2.2.10 includes complete metadata coverage for ClawHub registry.
 
 
 author: Black_Temple
