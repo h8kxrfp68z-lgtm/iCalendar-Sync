@@ -2,7 +2,7 @@
 
 **Professional iCloud Calendar integration with enterprise-grade security**
 
-[![Version](https://img.shields.io/badge/version-2.2.10-blue.svg)](https://github.com/h8kxrfp68z-lgtm/OpenClaw/releases)
+[![Version](https://img.shields.io/badge/version-2.2.11-blue.svg)](https://github.com/h8kxrfp68z-lgtm/OpenClaw/releases)
 [![Security Rating](https://img.shields.io/badge/security-A-brightgreen.svg)](SECURITY.md)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
@@ -10,12 +10,14 @@
 
 ---
 
-## 🎉 New in v2.2.10 (Feb 12, 2026)
+## 🎉 New in v2.2.11 (Feb 12, 2026)
 
-- **✅ Complete Metadata Coverage**: Added 4 metadata formats (.clawhub.yaml, CLAWHUB_METADATA.yaml, skill.yaml, metadata.yaml)
-- **🔒 Registry-Level Declarations**: Explicitly declared required_env_vars in ClawHub registry metadata
-- **📦 Unified Versioning**: All files synchronized to v2.2.10 for consistency
-- **🎯 ClawHub Security Scan**: Final fix for "metadata_env_mismatch" and "missing_registry_env_declaration" issues
+- **🌍 Cyrillic Support**: Fixed calendar name validation to support Unicode (Cyrillic, Chinese, Arabic, etc.)
+- **🔧 Headless Configuration**: Added `--username`, `--password`, `--non-interactive` flags for automated setup
+- **✅ RuntimeWarning Fixed**: Suppressed module import warnings when using `python -m icalendar_sync`
+- **🙏 Field-Tested**: All fixes validated by real OpenClaw users (thanks Alfred!)
+
+[See BUGFIX_NOTES.md for details](BUGFIX_NOTES.md)
 
 [See full CHANGELOG](CHANGELOG.md) | [Security Scan Response](SECURITY_SCAN_NOTICE.md)
 
@@ -23,11 +25,11 @@
 
 ## ⚠️ CRITICAL NOTICE: What This Version Actually Includes
 
-**Version 2.2.10 is the COMPLETE METADATA RELEASE** with full ClawHub compatibility. Some documentation files (DOCUMENTATION.md, ARCHITECTURE.md) describe **planned future features** that are not yet implemented.
+**Version 2.2.11 is the BUGFIX RELEASE** with Cyrillic support and headless configuration. Some documentation files (DOCUMENTATION.md, ARCHITECTURE.md) describe **planned future features** that are not yet implemented.
 
 **IMPORTANT: See SECURITY_SCAN_NOTICE.md for detailed responses to ClawHub security scan concerns.**
 
-### ✅ ACTUALLY IMPLEMENTED IN v2.2.10:
+### ✅ ACTUALLY IMPLEMENTED IN v2.2.11:
 
 **Fully functional modules:**
 - `src/icalendar_sync/calendar.py` (33 KB) - Complete CalDAV client
