@@ -8,7 +8,7 @@ This skill has been repeatedly flagged with `[METADATA_ENV_MISMATCH]` error:
 ## Root Cause
 The ClawHub registry is **caching stale metadata** from an earlier version. The current repository contains **correct and consistent metadata** across all files.
 
-## Current Metadata Status (v2.2.21)
+## Current Metadata Status (v2.2.22)
 
 ### ✅ Required Environment Variables
 **ALL metadata files consistently declare:**
@@ -46,7 +46,7 @@ The ClawHub registry is **caching stale metadata** from an earlier version. The 
 **Please clear the ClawHub registry cache** for this skill and re-index from:
 - Repository: `https://github.com/h8kxrfp68z-lgtm/iCalendar-Sync`
 - Branch: `main`
-- Current version: `2.2.21`
+- Current version: `2.2.22`
 
 The "registry summary" being presented to the scanner **does not reflect the actual repository contents**.
 
@@ -73,5 +73,5 @@ All commands will show **required credentials are declared** and **install spec 
 ---
 
 **Last Updated:** 2026-02-12  
-**Version:** 2.2.21  
+**Version:** 2.2.22  
 **Issue:** Registry cache serving stale metadata

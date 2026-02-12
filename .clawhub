@@ -3,7 +3,7 @@
 
 [skill]
 name = "icalendar-sync"
-version = "2.2.21"
+version = "2.2.22"
 type = "runtime"
 instruction_only = false
 
