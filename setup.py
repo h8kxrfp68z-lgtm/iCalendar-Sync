@@ -16,7 +16,7 @@ else:
 
 setup(
     name="openclaw-icalendar-sync",
-    version="2.2.18",
+    version="2.2.19",
     author="Black_Temple",
     author_email="contact@clawhub.ai",
     description="Professional iCloud Calendar integration for OpenClaw agents",
