@@ -2,18 +2,32 @@
 
 **Professional iCloud Calendar integration with enterprise-grade security**
 
-[![Version](https://img.shields.io/badge/version-2.2.2-blue.svg)](https://github.com/h8kxrfp68z-lgtm/OpenClaw/releases)
+[![Version](https://img.shields.io/badge/version-2.2.5-blue.svg)](https://github.com/h8kxrfp68z-lgtm/OpenClaw/releases)
 [![Security Rating](https://img.shields.io/badge/security-A-brightgreen.svg)](SECURITY.md)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![Cyrillic Support](https://img.shields.io/badge/cyrillic-✓-green.svg)](CHANGELOG.md)
+
+---
+
+## 🎉 New in v2.2.5 (Feb 12, 2026)
+
+- **🔥 Cyrillic Calendar Names**: Full support for Russian, Ukrainian, and other Unicode calendar names ("Личный", "Работа", "Семья")
+- **🔥 Headless Setup**: Automated credential configuration via CLI arguments for Docker, CI/CD, and agents
+- **📦 Module Execution**: Run as Python module with `python -m icalendar_sync`
+- **✨ Clean Output**: Eliminated RuntimeWarning for better UX
+
+[See full CHANGELOG](CHANGELOG.md) | [Migration Guide](CALENDAR_PY_PATCH_2.2.5.md)
 
 ---
 
 ## ⚠️ CRITICAL NOTICE: What This Version Actually Includes
 
-**Version 2.2.2 is a CORE IMPLEMENTATION** with essential CalDAV sync functionality. Some documentation files (DOCUMENTATION.md, ARCHITECTURE.md) describe **planned future features** that are not yet implemented.
+**Version 2.2.5 is a CORE IMPLEMENTATION** with essential CalDAV sync functionality. Some documentation files (DOCUMENTATION.md, ARCHITECTURE.md) describe **planned future features** that are not yet implemented.
 
-### ✅ ACTUALLY IMPLEMENTED IN v2.2.2:
+**IMPORTANT: See SECURITY_SCAN_NOTICE.md for detailed responses to ClawHub security scan concerns.**
+
+### ✅ ACTUALLY IMPLEMENTED IN v2.2.5:
 
 **Fully functional modules:**
 - `src/icalendar_sync/calendar.py` (33 KB) - Complete CalDAV client
@@ -23,19 +37,17 @@
   - Rate limiting (10 calls/60s)
   - Recurring events (RRULE support)
   - Multi-calendar support
-  - CLI interface
+  - **NEW:** Cyrillic/Unicode calendar names
+  - CLI interface with headless mode
 
-- `src/icalendar_sync/i18n.py` (40 KB) - Internationalization
-  - 20 language translations
-  - Message formatting
-  - Error messages in user's language
-
+- `src/icalendar_sync/__main__.py` - Module entry point (NEW in v2.2.5)
+- `src/icalendar_sync/i18n.py` (40 KB) - Internationalization for 20 languages
 - `src/icalendar_sync/translations_extended.py` - Extended translations
 - `src/icalendar_sync/translations_extended2.py` - Additional translations
 
 ### ❌ NOT IMPLEMENTED (Mentioned in Extended Docs Only):
 
-**These modules do NOT exist as separate files in v2.2.2:**
+**These modules do NOT exist as separate files in v2.2.5:**
 - ❌ `calendar_vault.py` - Described in ARCHITECTURE.md but not implemented
 - ❌ `privacy_engine.py` - Mentioned in DOCUMENTATION.md but not a separate module
 - ❌ `rate_limiter.py` - Rate limiting is embedded in calendar.py, not standalone
@@ -44,14 +56,17 @@
 
 **Why the documentation mismatch?**
 - DOCUMENTATION.md and ARCHITECTURE.md were written for a future v3.0 architecture
-- v2.2.2 consolidates all logic into `calendar.py` for simplicity
+- v2.2.5 consolidates all logic into `calendar.py` for simplicity
 - Some "modules" exist as functions/classes within calendar.py, not separate files
 - Extended docs are kept for reference/planning but describe future state
 
 **What to trust:**
-- ✅ **THIS README** - Accurate for v2.2.2
-- ✅ **SKILL.md** - Accurate for v2.2.2  
-- ✅ **skill.yaml** - Correct metadata
+- ✅ **THIS README** - Accurate for v2.2.5
+- ✅ **SKILL.md** - Accurate for v2.2.5  
+- ✅ **skill.yaml** - Correct metadata (lines 33-46: `required: true`)
+- ✅ **CLAWHUB_METADATA.yaml** - Explicit credential declarations
+- ✅ **SECURITY_SCAN_NOTICE.md** - Addresses all ClawHub concerns
+- ✅ **CHANGELOG.md** - Complete version history
 - ⚠️ **DOCUMENTATION.md** - Mix of current + future features (read with caution)
 - ⚠️ **ARCHITECTURE.md** - Describes future v3.0 architecture
 
@@ -60,6 +75,11 @@
 **Despite what any cached metadata says, this skill REQUIRES:**
 - `ICLOUD_USERNAME` - Your Apple ID (e.g., user@icloud.com)
 - `ICLOUD_APP_PASSWORD` - App-Specific Password from https://appleid.apple.com
+
+**Declared in:**
+- skill.yaml lines 33-46 (`required: true`)
+- CLAWHUB_METADATA.yaml (explicit declarations)
+- SECURITY_SCAN_NOTICE.md (detailed explanation)
 
 **Storage options:**
 1. ✅ **Preferred**: System keyring (macOS Keychain, Windows Credential Manager, Linux Secret Service)
@@ -80,18 +100,21 @@ The .env fallback is **explicitly documented and intentional** for development e
 - ⏰ **Alarms & Reminders** - Multiple alarms per event
 - 📱 **Multi-Device** - Instant sync across iPhone, iPad, Mac
 - 📂 **Multiple Calendars** - Work, Personal, Custom calendars
+- 🌍 **Unicode Support** - Cyrillic, CJK, and all international scripts (NEW in v2.2.5)
 - ⚡ **Conflict Detection** - Automatic scheduling conflict warnings
 
-### 🔒 Security Features (v2.2.2)
+### 🔒 Security Features (v2.2.5)
 
 - 🔑 **Keyring Integration** - Secure credential storage in OS keychain
-- 🛡️ **Input Validation** - Protection against injection attacks
+- 🛡️ **Input Validation** - Protection against injection attacks (Unicode-aware)
 - 🚫 **Rate Limiting** - DoS protection (10 calls/60s)
 - 🔐 **SSL Verification** - Enforced certificate validation
 - 🧹 **Log Filtering** - Automatic credential redaction
 - 🧵 **Thread Safety** - Safe concurrent access
 - 📝 **Atomic Operations** - Safe file writes
 - ⏱️ **Timeout Protection** - 30s timeout on interactive inputs
+
+---
 
 ## 🚀 Quick Start
 
@@ -109,6 +132,8 @@ pip install openclaw-icalendar-sync
 
 ### Setup
 
+#### Interactive Setup (Default)
+
 ```bash
 # Interactive setup wizard
 icalendar-sync setup
@@ -120,11 +145,23 @@ You'll need:
    - Go to: Sign-In & Security → App-Specific Passwords
    - Create new password for "OpenClaw iCalendar Sync"
 
+#### Headless Setup (NEW in v2.2.5) 🔥
+
+```bash
+# For automation, Docker, CI/CD, OpenClaw agents
+icalendar-sync setup \
+  --username "user@icloud.com" \
+  --password "xxxx-xxxx-xxxx-xxxx" \
+  --non-interactive
+```
+
 Credentials are stored securely in:
 - **macOS**: Keychain
 - **Windows**: Credential Manager
 - **Linux**: Secret Service (GNOME Keyring/KWallet)
 - **Fallback**: `~/.openclaw/.env` (chmod 0600)
+
+---
 
 ## 📖 Usage
 
@@ -136,11 +173,13 @@ icalendar-sync list
 
 Output:
 ```
-📅 Available Calendars (3):
+📅 Available Calendars (5):
 
   • Personal
   • Work
   • Family
+  • Личный      # Cyrillic support NEW in v2.2.5!
+  • Работа      # Russian calendar names now work!
 ```
 
 ### Get Events
@@ -149,7 +188,11 @@ Output:
 # Next 7 days (default)
 icalendar-sync get --calendar "Work"
 
-# Next 30 days
+# Cyrillic calendar names (NEW in v2.2.5)
+icalendar-sync get --calendar "Личный" --days 7
+icalendar-sync get --calendar "Работа" --days 30
+
+# English calendars still work
 icalendar-sync get --calendar "Personal" --days 30
 ```
 
@@ -160,10 +203,22 @@ icalendar-sync get --calendar "Personal" --days 30
 ```bash
 icalendar-sync create --calendar "Work" --json '{
   "summary": "Team Meeting",
-  "dtstart": "2026-02-10T14:00:00+03:00",
-  "dtend": "2026-02-10T15:00:00+03:00",
+  "dtstart": "2026-02-12T14:00:00+03:00",
+  "dtend": "2026-02-12T15:00:00+03:00",
   "description": "Q1 Planning Discussion",
   "location": "Conference Room A"
+}'
+```
+
+#### Cyrillic Event (NEW in v2.2.5)
+
+```bash
+icalendar-sync create --calendar "Личный" --json '{
+  "summary": "Встреча с врачом",
+  "dtstart": "2026-02-15T10:00:00+03:00",
+  "dtend": "2026-02-15T11:00:00+03:00",
+  "description": "Ежегодный осмотр",
+  "location": "Поликлиника №5"
 }'
 ```
 
@@ -192,8 +247,8 @@ icalendar-sync create --calendar "Personal" --json event.json
 ```bash
 icalendar-sync create --calendar "Work" --json '{
   "summary": "Weekly Standup",
-  "dtstart": "2026-02-10T09:00:00+03:00",
-  "dtend": "2026-02-10T09:30:00+03:00",
+  "dtstart": "2026-02-12T09:00:00+03:00",
+  "dtend": "2026-02-12T09:30:00+03:00",
   "rrule": {
     "freq": "WEEKLY",
     "interval": 1,
@@ -218,9 +273,21 @@ icalendar-sync create --calendar "Work" \
 # First, get the event UID
 icalendar-sync get --calendar "Work"
 
-# Then delete
-icalendar-sync delete --calendar "Work" --uid "event-uid-here"
+# Then delete (works with Cyrillic calendars too)
+icalendar-sync delete --calendar "Личный" --uid "event-uid-here"
 ```
+
+### Module Execution (NEW in v2.2.5) 📦
+
+```bash
+# All commands now work as Python module
+python -m icalendar_sync list
+python -m icalendar_sync setup
+python -m icalendar_sync get --calendar "Личный" --days 7
+python -m icalendar_sync create --calendar "Work" --json event.json
+```
+
+---
 
 ## 📚 API Usage (Python)
 
@@ -231,36 +298,38 @@ from datetime import datetime, timezone, timedelta
 # Initialize
 manager = CalendarManager()
 
-# List calendars
+# List calendars (including Cyrillic names)
 calendars = manager.list_calendars()
 print(f"Found {len(calendars)} calendars")
 
-# Get events
-events = manager.get_events("Work", days_ahead=7)
+# Get events from Russian calendar
+events = manager.get_events("Личный", days_ahead=7)
 
-# Create event
+# Create event in Cyrillic calendar
 event_data = {
-    "summary": "Project Deadline",
+    "summary": "Проектный дедлайн",
     "dtstart": datetime(2026, 2, 20, 17, 0, tzinfo=timezone.utc),
     "dtend": datetime(2026, 2, 20, 18, 0, tzinfo=timezone.utc),
-    "description": "Final project submission",
-    "location": "Online",
+    "description": "Финальная сдача проекта",
+    "location": "Онлайн",
     "alarms": [
-        {"minutes": 1440, "description": "1 day before"},
-        {"minutes": 60, "description": "1 hour before"}
+        {"minutes": 1440, "description": "За 1 день"},
+        {"minutes": 60, "description": "За 1 час"}
     ]
 }
 
 success = manager.create_event(
-    calendar_name="Work",
+    calendar_name="Работа",  # Cyrillic calendar name
     event_data=event_data,
     check_conflicts=True,
     auto_confirm=False
 )
 
 if success:
-    print("✅ Event created successfully")
+    print("✅ Событие создано успешно")
 ```
+
+---
 
 ## 🛠️ Configuration
 
@@ -272,7 +341,7 @@ export ICLOUD_USERNAME="user@icloud.com"
 export ICLOUD_APP_PASSWORD="xxxx-xxxx-xxxx-xxxx"
 
 # Optional
-export DEFAULT_CALENDAR="Personal"
+export DEFAULT_CALENDAR="Personal"  # Or "Личный" for Russian
 export LOG_LEVEL="INFO"  # DEBUG, INFO, WARNING, ERROR
 ```
 
@@ -291,18 +360,20 @@ RATE_LIMIT_WINDOW = 60  # seconds
 INPUT_TIMEOUT = 30  # seconds
 ```
 
+---
+
 ## 📊 Event Schema
 
 ### Required Fields
 
-- `summary` (string): Event title
+- `summary` (string): Event title (Unicode supported)
 - `dtstart` (ISO 8601 datetime): Start time
 - `dtend` (ISO 8601 datetime): End time
 
 ### Optional Fields
 
-- `description` (string): Event details
-- `location` (string): Event location
+- `description` (string): Event details (Unicode supported)
+- `location` (string): Event location (Unicode supported)
 - `status` (string): CONFIRMED, TENTATIVE, CANCELLED
 - `priority` (int): 0-9 (0=undefined, 1=highest, 9=lowest)
 - `attendees` (array): List of attendee emails
@@ -313,9 +384,9 @@ INPUT_TIMEOUT = 30  # seconds
 
 Use ISO 8601 with timezone:
 ```
-2026-02-10T14:00:00+03:00  # Moscow time
-2026-02-10T11:00:00Z       # UTC
-2026-02-10T06:00:00-05:00  # EST
+2026-02-12T14:00:00+03:00  # Moscow time
+2026-02-12T11:00:00Z       # UTC
+2026-02-12T06:00:00-05:00  # EST
 ```
 
 ### Recurrence Rule (RRULE)
@@ -330,7 +401,21 @@ Use ISO 8601 with timezone:
 }
 ```
 
+---
+
 ## 🔍 Troubleshooting
+
+### Invalid Calendar Name (Fixed in v2.2.5)
+
+```bash
+# v2.2.4 and earlier:
+❌ Invalid calendar name  # When using "Личный"
+
+# v2.2.5:
+✅ Calendar names with Cyrillic, CJK, and Unicode now work!
+```
+
+**Solution**: Upgrade to v2.2.5 or later.
 
 ### Authentication Failed
 
@@ -341,7 +426,7 @@ Use ISO 8601 with timezone:
 **Solution**: 
 1. Verify your Apple ID email is correct
 2. Generate a new App-Specific Password at https://appleid.apple.com
-3. Run `icalendar-sync setup` again
+3. Run `icalendar-sync setup` again (or use `--non-interactive` for automation)
 
 ### Calendar Not Found
 
@@ -351,8 +436,9 @@ Use ISO 8601 with timezone:
 
 **Solution**:
 1. Run `icalendar-sync list` to see available calendars
-2. Calendar names are case-insensitive in v2.2.2
-3. Ensure the calendar exists in your iCloud account
+2. Calendar names are case-sensitive and Unicode-aware
+3. Use exact name including spaces and special characters
+4. Ensure the calendar exists in your iCloud account
 
 ### Rate Limit Exceeded
 
@@ -390,6 +476,22 @@ sudo apt-get install gnome-keyring  # or kwallet
 # macOS/Windows: Built-in
 ```
 
+### Module Import Error (Fixed in v2.2.5)
+
+```bash
+# v2.2.4 and earlier:
+python -m icalendar_sync list
+# ModuleNotFoundError: No module named 'icalendar_sync'
+
+# v2.2.5:
+python -m icalendar_sync list
+# ✅ Works correctly
+```
+
+**Solution**: Upgrade to v2.2.5 or use `icalendar-sync` command directly.
+
+---
+
 ## 💻 Development
 
 ### Setup Development Environment
@@ -423,7 +525,8 @@ pip-audit
 icalendar-sync/
 ├── src/
 │   └── icalendar_sync/
-│       ├── __init__.py
+│       ├── __init__.py              # Package initialization
+│       ├── __main__.py              # Module entry point (NEW v2.2.5)
 │       ├── calendar.py              # Main implementation (33 KB)
 │       ├── i18n.py                  # Internationalization (40 KB)
 │       ├── translations_extended.py
@@ -432,18 +535,24 @@ icalendar-sync/
 │   ├── test_calendar.py
 │   └── test_security.py
 ├── docs/
-│   ├── ARCHITECTURE.md      # ⚠️ Describes future v3.0 architecture
-│   └── MULTILINGUAL.md      # ✅ Current i18n documentation
-├── pyproject.toml           # Project metadata
-├── requirements.txt         # Dependencies
-├── skill.yaml               # OpenClaw skill definition
-├── README.md                # ✅ This file (accurate for v2.2.2)
-├── SKILL.md                 # ✅ Accurate capabilities list
-├── DOCUMENTATION.md         # ⚠️ Mix of current + future features
-├── CHANGELOG.md             # Version history
-├── SECURITY.md              # Security policy
-└── LICENSE                  # MIT License
+│   ├── ARCHITECTURE.md              # ⚠️ Describes future v3.0 architecture
+│   └── MULTILINGUAL.md              # ✅ Current i18n documentation
+├── pyproject.toml                   # Project metadata
+├── requirements.txt                 # Dependencies
+├── skill.yaml                       # OpenClaw skill definition
+├── README.md                        # ✅ This file (accurate for v2.2.5)
+├── SKILL.md                         # ✅ Accurate capabilities list
+├── CHANGELOG.md                     # ✅ Version history (NEW v2.2.5)
+├── CALENDAR_PY_PATCH_2.2.5.md       # ✅ Upgrade patch instructions
+├── VERSION_2.2.5_SUMMARY.md         # ✅ Release summary
+├── DOCUMENTATION.md                 # ⚠️ Mix of current + future features
+├── CLAWHUB_METADATA.yaml            # ✅ Security metadata
+├── SECURITY_SCAN_NOTICE.md          # ✅ Security scan responses
+├── SECURITY.md                      # Security policy
+└── LICENSE                          # MIT License
 ```
+
+---
 
 ## 🔒 Security
 
@@ -454,14 +563,18 @@ See [SECURITY.md](SECURITY.md) for:
 - Best practices
 
 **Security Rating**: A (Excellent)  
-**Last Audit**: February 11, 2026  
-**Version Audited**: 2.2.2
+**Last Audit**: February 12, 2026  
+**Version Audited**: 2.2.5
+
+---
 
 ## 📝 Changelog
 
 See [CHANGELOG.md](CHANGELOG.md) for version history.
 
-**Latest (v2.2.2)**: Documentation updates, ClawHub security scan fixes, comprehensive disclaimers.
+**Latest (v2.2.5)**: Cyrillic support, headless setup, module execution, bug fixes.
+
+---
 
 ## 👥 Contributing
 
@@ -480,6 +593,9 @@ Contributions welcome! Please:
 - Black formatting (line length 100)
 - Pytest for tests
 - Security-first mindset
+- Unicode-aware string handling (NEW requirement v2.2.5)
+
+---
 
 ## 💬 Support
 
@@ -488,9 +604,13 @@ Contributions welcome! Please:
 - **Security**: security@clawhub.ai
 - **Email**: contact@clawhub.ai
 
+---
+
 ## 📜 License
 
 MIT License - see [LICENSE](LICENSE) file for details.
+
+---
 
 ## 🚀 Roadmap
 
@@ -510,12 +630,15 @@ MIT License - see [LICENSE](LICENSE) file for details.
 - [ ] Advanced conflict resolution
 - [ ] Multi-agent isolation system
 
+---
+
 ## 🙏 Acknowledgments
 
 - [caldav](https://github.com/python-caldav/caldav) - CalDAV client library
 - [icalendar](https://github.com/collective/icalendar) - iCalendar parser
 - [keyring](https://github.com/jaraco/keyring) - Secure credential storage
 - OpenClaw community for feedback and testing
+- Russian users for reporting Cyrillic issues (fixed in v2.2.5!)
 
 ---
 
@@ -523,4 +646,5 @@ MIT License - see [LICENSE](LICENSE) file for details.
 **For OpenClaw Multi-Agent Framework**
 
 🌟 Star this repo if you find it useful!  
-🐛 Report bugs or request features via [Issues](https://github.com/h8kxrfp68z-lgtm/OpenClaw/issues)
+🐛 Report bugs or request features via [Issues](https://github.com/h8kxrfp68z-lgtm/OpenClaw/issues)  
+🇷🇺 Теперь с поддержкой русского языка! (v2.2.5)
