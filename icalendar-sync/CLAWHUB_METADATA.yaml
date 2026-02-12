@@ -1,160 +1,30 @@
-# ClawHub Metadata for iCalendar Sync v2.2.4
-# This file explicitly declares all credentials and configuration requirements
-# for ClawHub security scanning systems.
+skill_name: "iCalendar Sync"
+skill_version: "2.2.5"
+description: "Synchronizes calendar events with iCloud CalDAV server"
+author: "Black_Temple"
+repository: "https://github.com/h8kxrfp68z-lgtm/OpenClaw"
+license: "MIT"
 
-skill_name: icalendar-sync
-version: 2.2.4
-author: Black_Temple
+required_env_vars:
+  - ICLOUD_USERNAME
+  - ICLOUD_APP_PASSWORD
 
-# CRITICAL: This skill REQUIRES these credentials
-required_credentials:
-  - name: ICLOUD_USERNAME
-    type: environment_variable
-    required: true
-    secure: false  # Username, not password
-    description: "Apple ID email address (e.g., user@icloud.com)"
-    example: "user@icloud.com"
-    
-  - name: ICLOUD_APP_PASSWORD
-    type: environment_variable
-    required: true
-    secure: true  # This IS a password/secret
-    description: "App-Specific Password from appleid.apple.com"
-    format: "xxxx-xxxx-xxxx-xxxx"
-    storage: "System keyring (macOS Keychain, Windows Credential Manager, Linux Secret Service)"
-    fallback_storage: "~/.openclaw/.env (plaintext, development only)"
+optional_env_vars: []
 
-primary_credential: ICLOUD_APP_PASSWORD
+security_notes: |
+  ⚠️  CRITICAL: Use OS keyring for credential storage, NEVER pass passwords via CLI arguments.
+  - Never pass password through --password on multi-user systems
+  - Do NOT use ~/.openclaw/.env in production (plaintext on disk)
+  - For Docker use secrets manager, NOT Docker ENV variables
+  - Generate app-specific password in Apple ID settings, NOT main password
 
-# Configuration paths
-config_paths:
-  - path: "~/.openclaw/.env"
-    type: "environment_file"
-    purpose: "Plaintext credential fallback (development only)"
-    permissions: "0600 (user read/write only)"
-    security_note: "NOT RECOMMENDED for production - use system keyring instead"
-    
-  - path: "~/.openclaw/skills/icalendar-sync/"
-    type: "installation_directory"
-    purpose: "Skill source code"
-    
-  - path: "~/.local/bin/icalendar-sync"
-    type: "cli_executable"
-    purpose: "Command-line interface wrapper"
+capabilities:
+  - List calendar events
+  - Create events
+  - Sync with iCloud CalDAV
+  - Multi-language support
 
-# Security characteristics
-security:
-  credential_storage:
-    preferred: "System keyring (OS-managed, encrypted)"
-    fallback: "~/.openclaw/.env (plaintext, chmod 0600)"
-    note: "Fallback is explicitly documented and intentional for dev environments"
-    
-  network_endpoints:
-    - "caldav.icloud.com:443"
-    - "p??-caldav.icloud.com:443 (Apple CDN)"
-    
-  ssl_verification: true
-  
-  input_validation:
-    - "Calendar names (alphanumeric, spaces, hyphens, underscores)"
-    - "Text field length limits (summary: 500, description: 5000)"
-    - "Date range limits (max 365 days)"
-    - "JSON file size (max 1MB)"
-    
-  rate_limiting:
-    calls: 10
-    window_seconds: 60
-
-# File system modifications
-file_system_changes:
-  - action: "create_directory"
-    path: "~/.openclaw/skills/icalendar-sync/"
-    purpose: "Install skill source code"
-    
-  - action: "create_file"
-    path: "~/.local/bin/icalendar-sync"
-    purpose: "CLI wrapper script"
-    executable: true
-    
-  - action: "create_file"
-    path: "~/.openclaw/.env"
-    purpose: "Optional credential storage (if keyring unavailable)"
-    conditional: "Only if system keyring is not available"
-    security_risk: "Stores credentials in plaintext"
-
-# Module implementation status (v2.2.4)
-actual_implementation:
-  # ONLY these files exist in skills/icalendar-sync/src/icalendar_sync/
-  included_modules:
-    - "calendar.py (33 KB) - Core CalDAV client with all functionality"
-    - "i18n.py (40 KB) - Internationalization for 20 languages"
-    - "translations_extended.py (14 KB) - Extended translations"
-    - "translations_extended2.py (14 KB) - Additional translations"
-    - "__init__.py (343 bytes) - Package initialization"
-    
-  # These do NOT exist as separate module files anywhere in the repository
-  not_implemented_as_separate_modules:
-    - "calendar_vault/ - NO directory with this name exists"
-    - "calendar_vault/access_control.py - Does NOT exist"
-    - "calendar_vault/conflict_resolver.py - Does NOT exist"
-    - "calendar_vault/privacy_engine.py - Does NOT exist"
-    - "rate_limiter.py - Does NOT exist (logic embedded in calendar.py)"
-    - "connector/ - Does NOT exist"
-    
-  # v2.2.4 fix: Removed duplicate src/ directory from repository root
-  repository_cleanup:
-    removed_in_v2_2_4:
-      - "src/ (entire directory at repository root)"
-      - "src/icalendar_sync/calendar_vault/ (old duplicate structure)"
-    reason: "Duplicate src/ tree caused ClawHub scanner confusion - docs said 'not implemented' but old files existed at wrong path"
-    
-  documentation_status:
-    accurate_for_v2_2_4:
-      - "README.md"
-      - "SKILL.md"
-      - "skill.yaml"
-      - "CLAWHUB_METADATA.yaml (this file)"
-      - "SECURITY_SCAN_NOTICE.md"
-    mixed_current_and_future:
-      - "DOCUMENTATION.md (describes future v3.0 architecture)"
-      - "docs/ARCHITECTURE.md (future v3.0 design)"
-
-# Why metadata might show 'none' for credentials
-metadata_inconsistency_explanation: |
-  ClawHub security scanner may be reading from a cached source or a different
-  registry metadata file that predates our fixes. The CURRENT state (v2.2.4) is:
-  
-  - skill.yaml: Correctly declares ICLOUD_USERNAME and ICLOUD_APP_PASSWORD as required: true (lines 33-46)
-  - This file (CLAWHUB_METADATA.yaml): Explicitly declares all credentials
-  - README.md: Contains CRITICAL NOTICE about credential requirements
-  - SKILL.md: Contains Security Notice about credentials
-  - SECURITY_SCAN_NOTICE.md: Comprehensive explanation of all concerns
-  
-  If ClawHub still shows "required env vars: none", this is a cache/indexing
-  issue on ClawHub's side, NOT an issue with our skill package.
-
-# Install mechanism
-install_mechanism:
-  type: "Local script + pip"
-  script: "install.sh"
-  actions:
-    - "Copy source to ~/.openclaw/skills/icalendar-sync/"
-    - "pip install dependencies (caldav, icalendar, keyring, pyyaml, python-dateutil)"
-    - "Create CLI wrapper at ~/.local/bin/icalendar-sync"
-  external_downloads: false
-  pypi_only: true
-  note: "No external URL downloads, only PyPI packages"
-
-# Autonomous invocation
-autonomous_invocation:
-  enabled: true
-  disable_model_invocation: false
-  always_run: false
-  note: "Standard OpenClaw agent invocation model"
-
-# Contact
-maintainer:
-  name: "Black_Temple"
-  email: "contact@clawhub.ai"
-  github: "https://github.com/h8kxrfp68z-lgtm/OpenClaw"
-  issues: "https://github.com/h8kxrfp68z-lgtm/OpenClaw/issues"
+platforms:
+  - Linux
+  - macOS
+  - Windows
