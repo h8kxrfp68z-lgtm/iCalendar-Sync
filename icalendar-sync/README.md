@@ -2,7 +2,7 @@
 
 **Professional iCloud Calendar integration with enterprise-grade security**
 
-[![Version](https://img.shields.io/badge/version-2.2.11-blue.svg)](https://github.com/h8kxrfp68z-lgtm/OpenClaw/releases)
+[![Version](https://img.shields.io/badge/version-2.2.12-blue.svg)](https://github.com/h8kxrfp68z-lgtm/OpenClaw/releases)
 [![Security Rating](https://img.shields.io/badge/security-A-brightgreen.svg)](SECURITY.md)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
@@ -10,7 +10,13 @@
 
 ---
 
-## 🎉 New in v2.2.11 (Feb 12, 2026)
+## 🎉 New in v2.2.12 (Feb 12, 2026)
+
+- **📋 Enhanced Registry Metadata**: Added clawhub.json and REGISTRY.yaml for maximum ClawHub compatibility
+- **🔍 Multiple Metadata Formats**: Now 6 different metadata files to ensure ClawHub recognition
+- **✅ Explicit Environment Declarations**: Required env vars declared in all possible formats
+
+## Previous: v2.2.11 (Feb 12, 2026)
 
 - **🌍 Cyrillic Support**: Fixed calendar name validation to support Unicode (Cyrillic, Chinese, Arabic, etc.)
 - **🔧 Headless Configuration**: Added `--username`, `--password`, `--non-interactive` flags for automated setup
@@ -25,11 +31,11 @@
 
 ## ⚠️ CRITICAL NOTICE: What This Version Actually Includes
 
-**Version 2.2.11 is the BUGFIX RELEASE** with Cyrillic support and headless configuration. Some documentation files (DOCUMENTATION.md, ARCHITECTURE.md) describe **planned future features** that are not yet implemented.
+**Version 2.2.12 is the ENHANCED METADATA RELEASE** with Cyrillic support and headless configuration. Some documentation files (DOCUMENTATION.md, ARCHITECTURE.md) describe **planned future features** that are not yet implemented.
 
 **IMPORTANT: See SECURITY_SCAN_NOTICE.md for detailed responses to ClawHub security scan concerns.**
 
-### ✅ ACTUALLY IMPLEMENTED IN v2.2.11:
+### ✅ ACTUALLY IMPLEMENTED IN v2.2.12:
 
 **Fully functional modules:**
 - `src/icalendar_sync/calendar.py` (33 KB) - Complete CalDAV client

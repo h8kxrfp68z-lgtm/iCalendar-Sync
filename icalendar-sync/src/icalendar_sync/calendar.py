@@ -5,7 +5,7 @@ iCalendar Sync - Main Calendar Manager
 Professional iCloud Calendar integration
 
 @author: Black_Temple
-@version: 2.2.11
+@version: 2.2.12
 """
 
 import os
@@ -38,7 +38,7 @@ except ImportError as e:
     sys.exit(1)
 
 __author__ = "Black_Temple"
-__version__ = "2.2.11"
+__version__ = "2.2.12"
 
 # Security constants
 MAX_CALENDAR_NAME_LENGTH = 255

@@ -5,7 +5,7 @@ iCalendar Sync - Module entry point
 Allows execution via: python -m icalendar_sync
 
 @author: Black_Temple
-@version: 2.2.11
+@version: 2.2.12
 """
 
 import sys
