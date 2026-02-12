@@ -1,5 +1,5 @@
 # =============================================================================
-# OFFICIAL CLAWHUB REGISTRY METADATA - v2.2.15
+# OFFICIAL CLAWHUB REGISTRY METADATA - v2.2.16
 # =============================================================================
 # This is the authoritative metadata file for ClawHub registry indexing.
 # Last updated: 2026-02-12
@@ -9,7 +9,7 @@
 skill_id: icalendar-sync
 skill_name: iCalendar Sync
 display_name: "iCalendar Sync"
-version: "2.2.15"
+version: "2.2.16"
 skill_type: runtime
 install_type: script
 
