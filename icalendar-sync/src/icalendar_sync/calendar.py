@@ -699,6 +699,10 @@ def cmd_setup(args):
     if hasattr(args, 'username') and args.username and hasattr(args, 'password') and args.password:
         email = args.username.strip()
         password = args.password.strip()
+        if not email or not password:
+            logger.error("Setup: CLI argument parsing error for username/password (invalid choice error)")
+            print("❌ CLI argument parsing error for username/password (invalid choice error)")
+            return
         if not args.non_interactive:
             print(f"📧 Using provided email: {email}")
             print("🔑 Using provided password")
@@ -734,37 +738,54 @@ def cmd_setup(args):
                 print("Setup cancelled")
                 return
     
+    # Validate email format before proceeding
+    if not validate_email(email):
+        logger.error("Setup: Invalid email format")
+        print("❌ Invalid email format")
+        return
+    
     # Try to store in keyring first
     try:
         keyring.set_password('openclaw-icalendar', email, password)
         print("\n✅ Credentials saved securely to system keyring")
         logger.info("Credentials stored in keyring")
-    except KeyringError:
+    except KeyringError as e:
+        logger.error("Setup: Could not access system keyring, falling back to .env")
         print("⚠️  Could not access system keyring, falling back to .env file")
         
         # Fallback to .env file with atomic write
-        env_path = Path.home() / ".openclaw" / ".env"
-        env_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        # Read existing lines
-        lines = []
-        if env_path.exists():
-            with open(env_path, 'r') as f:
-                lines = [l for l in f.readlines() 
-                        if not l.startswith(('ICLOUD_USERNAME', 'ICLOUD_APP_PASSWORD'))]
-        
-        # Write atomically using temp file
-        lines.append(f'ICLOUD_USERNAME="{email}"\n')
-        lines.append(f'ICLOUD_APP_PASSWORD="{password}"\n')
-        
-        with tempfile.NamedTemporaryFile('w', delete=False, dir=env_path.parent) as tmp:
-            tmp.writelines(lines)
-            tmp_path = tmp.name
-        
-        shutil.move(tmp_path, str(env_path))
-        os.chmod(env_path, 0o600)
-        
-        print(f"\n✅ Configuration saved securely to {env_path}")
+        try:
+            env_path = Path.home() / ".openclaw" / ".env"
+            env_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            # Read existing lines
+            lines = []
+            if env_path.exists():
+                with open(env_path, 'r') as f:
+                    lines = [l for l in f.readlines() 
+                            if not l.startswith(('ICLOUD_USERNAME', 'ICLOUD_APP_PASSWORD'))]
+            
+            # Escape special characters in email/password for shell safety
+            email_escaped = email.replace('"', '\\"')
+            password_escaped = password.replace('"', '\\"')
+            
+            # Write atomically using temp file with proper quoting
+            lines.append(f'ICLOUD_USERNAME="{email_escaped}"\n')
+            lines.append(f'ICLOUD_APP_PASSWORD="{password_escaped}"\n')
+            
+            with tempfile.NamedTemporaryFile('w', delete=False, dir=env_path.parent) as tmp:
+                tmp.writelines(lines)
+                tmp_path = tmp.name
+            
+            shutil.move(tmp_path, str(env_path))
+            os.chmod(env_path, 0o600)
+            
+            logger.info("Setup: Credentials saved to .env file")
+            print(f"✅ Configuration saved securely to {env_path}")
+        except (OSError, IOError) as file_error:
+            logger.error(f"Setup: Failed to write .env file: {str(file_error)}")
+            print(f"❌ Failed to save configuration: {str(file_error)}")
+            return
     
     print("🚀 You can now use iCalendar Sync!\n")
 

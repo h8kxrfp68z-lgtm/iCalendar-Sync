@@ -56,6 +56,25 @@ icalendar-sync setup
 
 ---
 
+### 4. ⚠️ iCalendar DTSTAMP Compatibility Issue
+**Status:** Known Issue (Library Behavior)
+
+**Issue:** Duplicated DTSTAMP cleanup detected in iCalendar library during event synchronization.
+
+**Details:** The `icalendar` library (>=5.0.0) automatically manages DTSTAMP fields when processing VEVENT components. When creating events, the library adds/updates DTSTAMP to current UTC time. During synchronization with iCloud CalDAV servers, additional DTSTAMP normalization may occur.
+
+**Impact:** Minimal - RFC 5545 compliant. DTSTAMP is automatically set correctly. Event UIDs and core event data remain stable.
+
+**Workaround:** None required - this is expected iCalendar behavior per RFC 5545 specification.
+
+**Reference:**
+- RFC 5545: https://tools.ietf.org/html/rfc5545#section-3.6.1
+- icalendar library: https://github.com/collective/icalendar
+
+**File:** `src/icalendar_sync/calendar.py:637` (DTSTAMP assignment in `create_event()`)
+
+---
+
 ## 📊 Testing Notes
 
 ### Test Environment
