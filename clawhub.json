@@ -5,8 +5,7 @@
   "description": "Professional iCloud Calendar integration for OpenClaw via CalDAV",
   "author": "Black_Temple",
   "license": "MIT",
-  "repository": "https://github.com/h8kxrfp68z-lgtm/OpenClaw",
-  "branch": "skills",
+  "repository": "https://github.com/h8kxrfp68z-lgtm/iCalendar-Sync",
 
   "type": "runtime",
   "install_type": "script",

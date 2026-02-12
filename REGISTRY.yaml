@@ -18,8 +18,7 @@ author:
 license: MIT
 
 repository:
-  url: "https://github.com/h8kxrfp68z-lgtm/OpenClaw"
-  branch: "skills"
+  url: "https://github.com/h8kxrfp68z-lgtm/iCalendar-Sync"
 
 # =============================================================================
 # REQUIRED ENVIRONMENT VARIABLES (CRITICAL FOR REGISTRY)
