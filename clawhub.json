@@ -1,7 +1,7 @@
 {
   "name": "icalendar-sync",
   "display_name": "iCalendar Sync",
-  "version": "2.2.27",
+  "version": "2.2.28",
   "description": "Professional iCloud Calendar integration for OpenClaw via CalDAV",
   "author": "Black_Temple",
   "license": "MIT",
@@ -44,8 +44,7 @@
 
   "credentials": {
     "primary": "ICLOUD_APP_PASSWORD",
-    "storage": "OS keyring (macOS Keychain, Windows Credential Manager, Linux Secret Service)",
-    "fallback": "~/.openclaw/.env (plaintext, development only - NOT for production)"
+    "storage": "OS keyring (macOS Keychain, Windows Credential Manager, Linux Secret Service)"
   },
 
   "capabilities": [
@@ -59,7 +58,7 @@
   ],
 
   "security": {
-    "credential_storage": "OS keyring preferred, plaintext .env fallback (dev only)",
+    "credential_storage": "OS keyring (macOS Keychain, Windows Credential Manager, Linux Secret Service)",
     "network_endpoints": [
       "caldav.icloud.com:443",
       "p??-caldav.icloud.com:443"
@@ -93,8 +92,7 @@
 
   "warnings": [
     "CRITICAL: Use App-Specific Password from appleid.apple.com, NOT regular Apple ID password",
-    "SECURITY: Store credentials in OS keyring, NOT in .env file for production",
-    "SECURITY: Never pass passwords via --password flag on multi-user systems",
-    "DOCKER: Use secrets manager or Docker secrets, NOT environment variables"
+    "SECURITY: Store credentials in OS keyring for maximum security",
+    "DOCKER: Use Docker secrets or external secrets manager"
   ]
 }

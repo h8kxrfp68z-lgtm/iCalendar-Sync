@@ -1,5 +1,5 @@
 skill_name: "iCalendar Sync"
-skill_version: "2.2.27"
+skill_version: "2.2.28"
 description: "Synchronizes calendar events with iCloud CalDAV server"
 author: "Black_Temple"
 repository: "https://github.com/h8kxrfp68z-lgtm/iCalendar-Sync"
@@ -12,10 +12,9 @@ required_env_vars:
 optional_env_vars: []
 
 security_notes: |
-  ⚠️  CRITICAL: Use OS keyring for credential storage, NEVER pass passwords via CLI arguments.
-  - Never pass password through --password on multi-user systems
-  - Do NOT use ~/.openclaw/.env in production (plaintext on disk)
-  - For Docker use secrets manager, NOT Docker ENV variables
+  ⚠️  CRITICAL: Use OS keyring for credential storage.
+  - Store credentials in OS keyring (macOS Keychain, Windows Credential Manager, Linux Secret Service)
+  - For Docker use secrets manager or Docker secrets
   - Generate app-specific password in Apple ID settings, NOT main password
 
 capabilities:
