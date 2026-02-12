@@ -1,11 +1,12 @@
 # ClawHub Registry Metadata
 # This file explicitly declares registry-level metadata for ClawHub
+# UPDATED: 2026-02-12 to force registry re-indexing
 
 skill_name: iCalendar Sync
 skill_version: 2.2.19
-skill_type: runtime  # not instruction-only
+skill_type: runtime  # NOT instruction-only - this is a Python package with install.sh
 
-# CRITICAL: Required credentials
+# CRITICAL: Required credentials (MUST NOT BE EMPTY/NONE)
 required_env_vars:
   - name: ICLOUD_USERNAME
     description: Apple ID email address
@@ -32,9 +33,11 @@ optional_env_vars:
     description: Logging level
     default: INFO
 
-# Installation type
+# Installation type - EXPLICIT DECLARATION
 install_type: script  # uses install.sh
 install_script: install.sh
+has_install_spec: true
+instruction_only: false
 
 # Capabilities
 purpose: iCloud Calendar CalDAV synchronization
