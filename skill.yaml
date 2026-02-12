@@ -1,5 +1,5 @@
 # =============================================================================
-# iCalendar Sync v2.2.20 - OpenClaw Skill Definition
+# iCalendar Sync v2.2.21 - OpenClaw Skill Definition
 # =============================================================================
 #
 # CRITICAL: This skill REQUIRES credentials:
@@ -8,7 +8,7 @@
 #
 # These are explicitly declared as REQUIRED in ALL metadata files.
 #
-# NEW in v2.2.20:
+# NEW in v2.2.21:
 #   - 🔧 Fixed metadata structure to match verified working version
 #   - 🗑️ Removed redundant CLAWHUB.yaml causing registry conflicts
 #
@@ -48,7 +48,7 @@
 
 name: icalendar-sync
 display_name: "iCalendar Sync"
-version: 2.2.20
+version: 2.2.21
 description: >
   Professional iCloud Calendar integration for OpenClaw.
   Provides bidirectional CalDAV sync with iCloud calendars.
