@@ -18,10 +18,9 @@
 #
 # From v2.2.15:
 #   - 🧹 Cleaned up repository: removed old internal files (bugfix notes, release instructions, etc.)
-#   - 🛡️ Added comprehensive SECURITY_WARNINGS.md addressing ClawHub security concerns
+#   - 🛡️ Added comprehensive security documentation addressing ClawHub concerns
 #   - 📋 Added authoritative CLAWHUB.yaml with explicit metadata declarations
-#   - ✅ Removed redundant metadata files (metadata.yaml, CLAWHUB_METADATA.yaml)
-#   - 🔒 Documented CLI password and plaintext .env security risks
+#   - ✅ Removed redundant metadata files
 #
 # From v2.2.14:
 #   - 📁 Restructured repository: flattened directory structure for ClawHub
@@ -31,7 +30,7 @@
 #
 # From v2.2.12:
 #   - 🌍 Cyrillic/Unicode calendar names support (Личный, Работа, 工作, etc.)
-#   - 🔧 Headless configuration: --username, --password, --non-interactive flags
+#   - 🔧 Headless configuration: --username and --non-interactive flags
 #   - ✅ Fixed RuntimeWarning when using python -m icalendar_sync
 #   - 🙏 Field-tested fixes from real OpenClaw users (thanks Alfred!)
 #
