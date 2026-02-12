@@ -19,7 +19,7 @@
 ## Previous: v2.2.11 (Feb 12, 2026)
 
 - **🌍 Cyrillic Support**: Fixed calendar name validation to support Unicode (Cyrillic, Chinese, Arabic, etc.)
-- **🔧 Headless Configuration**: Added `--username`, `--password`, `--non-interactive` flags for automated setup
+- **🔧 Headless Configuration**: Added `--username` and `--non-interactive` flags for automated setup
 - **✅ RuntimeWarning Fixed**: Suppressed module import warnings when using `python -m icalendar_sync`
 - **🙏 Field-Tested**: All fixes validated by real OpenClaw users (thanks Alfred!)
 
@@ -40,7 +40,7 @@
 **Fully functional modules:**
 - `src/icalendar_sync/calendar.py` (33 KB) - Complete CalDAV client
   - Event CRUD operations (create, read, update, delete)
-  - Credential management (keyring + .env fallback)
+  - Secure credential management via OS keyring
   - Input validation and security checks
   - Rate limiting (10 calls/60s)
   - Recurring events (RRULE support)
@@ -80,20 +80,14 @@
 
 ### 🔒 CREDENTIALS REQUIRED:
 
-**Explicitly declared in registry metadata (v2.2.6 fix):**
+**Required environment variables:**
 - `ICLOUD_USERNAME` - Your Apple ID (e.g., user@icloud.com)
 - `ICLOUD_APP_PASSWORD` - App-Specific Password from [https://appleid.apple.com](https://appleid.apple.com)
 
-**Declared in:**
-- skill.yaml (required: true)
-- CLAWHUB_METADATA.yaml (explicit declarations with security notes)
-- SECURITY_SCAN_NOTICE.md (detailed explanation)
-
-**Storage options:**
-1. ✅ **Preferred**: System keyring (macOS Keychain, Windows Credential Manager, Linux Secret Service)
-2. ⚠️ **Fallback**: `~/.openclaw/.env` file (chmod 0600) - plaintext, use ONLY for development
-
-The .env fallback is **explicitly documented and intentional** for development environments where keyring backends may not be available.
+**Storage:**
+- ✅ Credentials are securely stored in your operating system's keyring
+- ✅ macOS: Keychain, Windows: Credential Manager, Linux: Secret Service API
+- ✅ Never stored in plaintext or logged
 
 ---
 
@@ -156,21 +150,15 @@ Create new password for "OpenClaw iCalendar Sync"
 Headless Setup (Automated)
 bash
 # For automation, Docker, CI/CD, OpenClaw agents
-icalendar-sync setup \
-  --username "user@icloud.com" \
-  --password "xxxx-xxxx-xxxx-xxxx" \
-  --non-interactive
-⚠️ SECURITY WARNING: Avoid passing passwords on CLI on multi-user systems. Use environment variables or secrets manager instead.
+# Use environment variables for credentials
+export ICLOUD_USERNAME="user@icloud.com"
+export ICLOUD_APP_PASSWORD="xxxx-xxxx-xxxx-xxxx"
+icalendar-sync setup --non-interactive
 
-Credentials are stored securely in:
-
-macOS: Keychain
-
-Windows: Credential Manager
-
-Linux: Secret Service (GNOME Keyring/KWallet)
-
-Fallback: ~/.openclaw/.env (chmod 0600, plaintext, development only)
+Credentials are securely stored in your OS keyring:
+- **macOS**: Keychain
+- **Windows**: Credential Manager
+- **Linux**: Secret Service (GNOME Keyring/KWallet)
 
 📖 Usage
 List Calendars

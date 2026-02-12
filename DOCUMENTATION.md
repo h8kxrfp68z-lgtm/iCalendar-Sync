@@ -273,9 +273,9 @@ Enter App-Specific Password: xxxx-xxxx-xxxx-xxxx
 **Alternative: Environment Variables**
 
 ```bash
-# .env file (if keyring unavailable)
-ICLOUD_USERNAME=user@icloud.com
-ICLOUD_APP_PASSWORD=xxxx-xxxx-xxxx-xxxx
+# Environment variables (for headless environments)
+export ICLOUD_USERNAME="user@icloud.com"
+export ICLOUD_APP_PASSWORD="xxxx-xxxx-xxxx-xxxx"
 DEFAULT_CALENDAR=Personal
 LOG_LEVEL=INFO
 ```
