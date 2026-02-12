@@ -1,5 +1,5 @@
 # =============================================================================
-# iCalendar Sync v2.2.12 - OpenClaw Skill Definition
+# iCalendar Sync v2.2.13 - OpenClaw Skill Definition
 # =============================================================================
 #
 # CRITICAL: This skill REQUIRES credentials:
@@ -8,7 +8,10 @@
 #
 # These are explicitly declared as REQUIRED in ALL metadata files.
 #
-# NEW in v2.2.12:
+# NEW in v2.2.13:
+#   - 🔄 Version bump to force ClawHub re-indexing (cache issue fix)
+#
+# From v2.2.12:
 #   - 🌍 Cyrillic/Unicode calendar names support (Личный, Работа, 工作, etc.)
 #   - 🔧 Headless configuration: --username, --password, --non-interactive flags
 #   - ✅ Fixed RuntimeWarning when using python -m icalendar_sync
@@ -27,7 +30,7 @@
 
 name: icalendar-sync
 display_name: "iCalendar Sync"
-version: 2.2.12
+version: 2.2.13
 description: >
   Professional iCloud Calendar integration for OpenClaw.
   Provides bidirectional CalDAV sync with iCloud calendars.

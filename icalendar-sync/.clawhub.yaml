@@ -2,7 +2,7 @@
 # This file explicitly declares registry-level metadata for ClawHub
 
 skill_name: iCalendar Sync
-skill_version: 2.2.12
+skill_version: 2.2.13
 skill_type: runtime  # not instruction-only
 
 # CRITICAL: Required credentials

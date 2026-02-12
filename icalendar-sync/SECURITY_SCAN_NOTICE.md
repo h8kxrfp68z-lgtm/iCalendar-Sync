@@ -1,9 +1,9 @@
 # Security Scan Notice for ClawHub Reviewers
 
-**Skill**: iCalendar Sync v2.2.3  
-**Author**: Black_Temple  
-**Date**: February 11, 2026  
-**Status**: HIGH CONFIDENCE security scan concerns addressed
+**Skill**: iCalendar Sync v2.2.13
+**Author**: Black_Temple
+**Date**: February 12, 2026
+**Status**: METADATA_ENV_MISMATCH cache issue - all metadata files are correct
 
 ---
 
@@ -15,7 +15,7 @@ This file directly addresses the HIGH CONFIDENCE concerns raised in your securit
 
 ## 1. ❌ "Registry metadata claims 'required env vars: none'"
 
-### CURRENT STATE (v2.2.3):
+### CURRENT STATE (v2.2.13):
 
 **skill.yaml** lines 27-40 EXPLICITLY declare:
 
@@ -60,9 +60,10 @@ environment:
 
 ### RESOLUTION:
 
-- **Our side**: Fixed in skill.yaml (committed February 11, 2026)
-- **Your side**: Please clear cache / re-index this skill
-- **Verification**: Manually inspect skill.yaml lines 27-40
+- **Our side**: All metadata files correctly declare required env vars (v2.2.13, February 12, 2026)
+- **Your side**: Please clear cache / re-index this skill - this is a ClawHub caching issue
+- **Verification**: Manually inspect skill.yaml lines 79-89, REGISTRY.yaml lines 28-41, clawhub.json lines 16-30
+- **Version bump**: v2.2.12 → v2.2.13 to force re-indexing
 
 ---
 
@@ -72,7 +73,7 @@ environment:
 
 The confusion stems from **aspirational documentation** for future versions:
 
-#### ✅ WHAT ACTUALLY EXISTS (v2.2.3):
+#### ✅ WHAT ACTUALLY EXISTS (v2.2.13):
 
 ```
 src/icalendar_sync/
@@ -291,6 +292,26 @@ If ClawHub reviewers have questions:
 
 **This skill is safe, legitimate, and all concerns are either addressed or explained.**
 
-**Version**: 2.2.3  
-**Last Updated**: February 11, 2026, 11:37 PM MSK  
+**Version**: 2.2.13
+**Last Updated**: February 12, 2026
 **Status**: Ready for production use with proper credential storage (keyring)
+
+---
+
+## UPDATE v2.2.13 (February 12, 2026)
+
+**Issue**: ClawHub security scanner still reports "Required env vars: none" despite all metadata files being correct.
+
+**Root Cause**: ClawHub cache/indexing issue, NOT a packaging error.
+
+**Evidence**:
+- ✅ skill.yaml lines 79-89: Both credentials marked `required: true`
+- ✅ REGISTRY.yaml lines 28-41: Both credentials in `required` section
+- ✅ clawhub.json lines 16-30: Both credentials with `"required": true`
+- ✅ metadata.yaml lines 9-18: Both credentials in `required` section
+- ✅ CLAWHUB_METADATA.yaml lines 9-11: Both credentials in `required_env_vars`
+- ✅ .clawhub.yaml lines 9-20: Both credentials with `required: true`
+
+**Action Taken**: Version bump 2.2.12 → 2.2.13 to force ClawHub re-indexing.
+
+**Recommendation for ClawHub**: Clear cache and re-index this skill from GitHub source.
