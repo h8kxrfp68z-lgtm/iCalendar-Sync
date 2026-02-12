@@ -1,0 +1,78 @@
+{
+  "schema_version": "1.0",
+  "name": "icalendar-sync",
+  "display_name": "iCalendar Sync",
+  "version": "2.2.20",
+  "description": "Professional iCloud Calendar integration for OpenClaw via CalDAV",
+  "author": "Black_Temple",
+  "license": "MIT",
+  "repository": "https://github.com/h8kxrfp68z-lgtm/iCalendar-Sync",
+  
+  "type": "runtime",
+  "instruction_only": false,
+  
+  "install": {
+    "type": "script",
+    "script": "install.sh",
+    "has_install_spec": true
+  },
+  
+  "runtime": {
+    "type": "python",
+    "version": ">=3.9"
+  },
+  
+  "environment": {
+    "required": [
+      {
+        "name": "ICLOUD_USERNAME",
+        "description": "Apple ID email address (e.g., user@icloud.com)",
+        "type": "string",
+        "required": true,
+        "sensitive": false
+      },
+      {
+        "name": "ICLOUD_APP_PASSWORD",
+        "description": "App-Specific Password from appleid.apple.com",
+        "type": "string",
+        "required": true,
+        "sensitive": true
+      }
+    ],
+    "optional": [
+      {
+        "name": "DEFAULT_CALENDAR",
+        "description": "Default calendar name",
+        "default": "Personal"
+      },
+      {
+        "name": "LOG_LEVEL",
+        "description": "Logging level",
+        "default": "INFO"
+      }
+    ]
+  },
+  
+  "security": {
+    "credential_storage": "OS keyring (macOS Keychain, Windows Credential Manager, Linux Secret Service)",
+    "network_endpoints": [
+      "caldav.icloud.com:443",
+      "p*-caldav.icloud.com:443"
+    ],
+    "ssl_verification": true,
+    "input_validation": true,
+    "rate_limiting": {
+      "calls": 10,
+      "window_seconds": 60
+    }
+  },
+  
+  "capabilities": [
+    "List iCloud calendars",
+    "Get calendar events",
+    "Create calendar events",
+    "Delete calendar events",
+    "Recurring events support",
+    "Multi-language support"
+  ]
+}
