@@ -1,0 +1,52 @@
+# ClawHub ignore file - exclude non-text and binary files
+
+# Python bytecode
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Images
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.ico
+*.svg
+*.bmp
+
+# Archives
+*.zip
+*.tar
+*.tar.gz
+*.rar
+*.7z
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+
+# OS files
+Thumbs.db
+desktop.ini
