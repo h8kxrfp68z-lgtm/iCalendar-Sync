@@ -19,17 +19,35 @@ The skill stores credentials securely in your operating system's keyring:
 - **Windows**: Credential Manager
 - **Linux**: Secret Service API
 
-### 3. For Docker/Containers - Use Secrets Manager
+### 3. For Headless/Automated Environments
 
+For Docker, CI/CD, or headless servers where interactive input is not possible:
+
+**Option A: Environment Variables** (standard, secure method)
 ```bash
-# ✅ SECURE - Use Docker secrets
+# Set credentials as environment variables
+export ICLOUD_USERNAME="user@icloud.com"
+export ICLOUD_APP_PASSWORD="xxxx-xxxx-xxxx-xxxx"
+
+# Run setup
+python -m icalendar_sync setup --non-interactive
+```
+
+**Option B: Docker/Kubernetes Secrets** (most secure for containers)
+```bash
+# Docker secrets
 docker run --secret icloud_username --secret icloud_password ...
 
-# ✅ SECURE - Use Kubernetes secrets
+# Kubernetes secrets
 kubectl create secret generic icloud-credentials \
   --from-literal=username=user@icloud.com \
   --from-literal=password=xxxx-xxxx-xxxx-xxxx
 ```
+
+Credentials are read in this order:
+1. OS keyring (if available and configured)
+2. Environment variables (if keyring unavailable)
+3. Interactive prompt (if neither available)
 
 ## Installation
 
