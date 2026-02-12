@@ -2,7 +2,7 @@
 
 **Professional iCloud Calendar integration with enterprise-grade security**
 
-[![Version](https://img.shields.io/badge/version-2.2.6-blue.svg)](https://github.com/h8kxrfp68z-lgtm/OpenClaw/releases)
+[![Version](https://img.shields.io/badge/version-2.2.7-blue.svg)](https://github.com/h8kxrfp68z-lgtm/OpenClaw/releases)
 [![Security Rating](https://img.shields.io/badge/security-A-brightgreen.svg)](SECURITY.md)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
@@ -10,7 +10,7 @@
 
 ---
 
-## 🎉 New in v2.2.6 (Feb 12, 2026)
+## 🎉 New in v2.2.7 (Feb 12, 2026)
 
 - **🔒 Security Hardening**: Fixed metadata inconsistencies and enhanced credential handling documentation
 - **⚠️ Explicit Requirements**: ICLOUD_USERNAME and ICLOUD_APP_PASSWORD now explicitly declared in registry metadata

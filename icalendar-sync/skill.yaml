@@ -1,22 +1,26 @@
 # =============================================================================
-# iCalendar Sync v2.2.5 - OpenClaw Skill Definition
+# iCalendar Sync v2.2.7 - OpenClaw Skill Definition
 # =============================================================================
 # 
 # CRITICAL: This skill REQUIRES credentials:
 #   - ICLOUD_USERNAME (Apple ID email)
 #   - ICLOUD_APP_PASSWORD (App-Specific Password from appleid.apple.com)
 # 
-# Despite what any cached metadata shows, these are REQUIRED (see line 33-46).
+# These are explicitly declared as REQUIRED (see line 33-46).
 # 
-# NEW in v2.2.5:
-#   - Cyrillic calendar names support (Личный, Работа, etc.)
+# NEW in v2.2.7:
+#   - Security hardening: Fixed metadata inconsistencies
+#   - Explicit credential declarations in registry
+#   - Enhanced security documentation
+#   - Cyrillic calendar names support
 #   - Headless setup: icalendar-sync setup --username X --password Y
 #   - Module execution: python -m icalendar_sync
 # =============================================================================
 
+
 name: icalendar-sync
 display_name: "iCalendar Sync"
-version: 2.2.5
+version: 2.2.7
 description: >
   Professional iCloud Calendar integration for OpenClaw.
   Provides bidirectional CalDAV sync with iCloud calendars.
@@ -24,12 +28,14 @@ description: >
   
   REQUIRES: ICLOUD_USERNAME and ICLOUD_APP_PASSWORD (see environment section below).
   
-  v2.2.5 adds Cyrillic support and headless configuration.
+  v2.2.7 includes security hardening and explicit credential declarations.
+
 
 author: Black_Temple
 license: MIT
 repository: https://github.com/h8kxrfp68z-lgtm/OpenClaw
 homepage: https://clawhub.ai/skills/icalendar-sync
+
 
 category: productivity
 tags:
@@ -43,9 +49,11 @@ tags:
   - russian
   - cyrillic
 
+
 runtime:
   type: python
   version: ">=3.9"
+
 
 dependencies:
   python:
@@ -55,6 +63,7 @@ dependencies:
     - python-dateutil>=2.8.0
     - keyring>=24.0.0
     - python-dotenv>=1.0.0
+
 
 # =============================================================================
 # CREDENTIALS: These are REQUIRED despite any cached metadata saying "none"
@@ -81,6 +90,7 @@ environment:
     required: false
     default: "INFO"
 
+
 # =============================================================================
 # SECURITY
 # =============================================================================
@@ -91,12 +101,14 @@ security:
   ssl_verification: true
   sensitive_data_filtering: true
 
+
 # =============================================================================
 # CAPABILITIES
 # =============================================================================
 capabilities:
   agent_aware: false
   supports_isolation: false
+
 
 # =============================================================================
 # COMMANDS
