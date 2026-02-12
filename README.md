@@ -1,178 +1,359 @@
-# OpenClaw Skills — skills branch
+# 📅 iCalendar Sync for OpenClaw
 
-This branch contains ready-to-use skills and plugins for the OpenClaw framework. Each skill is packaged so it can be inspected independently and integrated into an OpenClaw installation or used standalone where applicable.
+**Professional iCloud Calendar integration with enterprise-grade security**
 
-This repository is intended as a curated collection of skill implementations, examples, and metadata that make it easy to test, publish, and register skills with ClawHub/registry systems.
-
----
-
-## Contents
-
-- icalendar-sync/ — iCalendar Sync skill for OpenClaw (full CalDAV / iCloud integration)
-- README.md — (this file) branch overview, usage and contribution notes
-- Other skill directories (if present) — each skill contains its own README, skill.yaml and supporting files
-
-For detailed documentation, examples, API usage and security notes for the calendar skill, see:
-- icalendar-sync/README.md
+[![Version](https://img.shields.io/badge/version-2.2.12-blue.svg)](https://github.com/h8kxrfp68z-lgtm/OpenClaw/releases)
+[![Security Rating](https://img.shields.io/badge/security-A-brightgreen.svg)](SECURITY.md)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![Cyrillic Support](https://img.shields.io/badge/cyrillic-✓-green.svg)](CHANGELOG.md)
 
 ---
 
-## Purpose & Scope
+## 🎉 New in v2.2.12 (Feb 12, 2026)
 
-This branch provides:
+- **📋 Enhanced Registry Metadata**: Added clawhub.json and REGISTRY.yaml for maximum ClawHub compatibility
+- **🔍 Multiple Metadata Formats**: Now 6 different metadata files to ensure ClawHub recognition
+- **✅ Explicit Environment Declarations**: Required env vars declared in all possible formats
 
-- A collection of self-contained OpenClaw skills and plugins, ready for evaluation and integration.
-- Explicit metadata files so skills can be discovered and registered by ClawHub-style registries.
-- Practical examples and runtime guidance for secure credential handling and headless (CI/agent) setup.
+## Previous: v2.2.11 (Feb 12, 2026)
 
-Each skill aims to include:
-- A human-readable README describing features, requirements and usage.
-- A skill.yaml or CLAWHUB_METADATA.yaml containing required metadata and declared environment variables.
-- A clear license and change log.
+- **🌍 Cyrillic Support**: Fixed calendar name validation to support Unicode (Cyrillic, Chinese, Arabic, etc.)
+- **🔧 Headless Configuration**: Added `--username`, `--password`, `--non-interactive` flags for automated setup
+- **✅ RuntimeWarning Fixed**: Suppressed module import warnings when using `python -m icalendar_sync`
+- **🙏 Field-Tested**: All fixes validated by real OpenClaw users (thanks Alfred!)
 
----
+[See BUGFIX_NOTES.md for details](BUGFIX_NOTES.md)
 
-## Highlight: icalendar-sync
-
-The primary skill included in this branch is iCalendar Sync — a professional-grade iCloud/CalDAV calendar integration for OpenClaw.
-
-Key points (see icalendar-sync/README.md for the authoritative details):
-- Provides bidirectional calendar sync with iCloud via CalDAV.
-- Supports event CRUD, recurring rules (RRULE), alarms, multiple calendars and Unicode calendar names (Cyrillic, CJK, Arabic, etc.).
-- Includes CLI and Python module interfaces (python -m icalendar_sync).
-- Security-oriented: keyring integration, input validation, SSL verification, log filtering and documented storage fallbacks.
-- Headless / automated setup options for CI, Docker and OpenClaw agents.
-
-Recommended next step: open icalendar-sync/README.md for complete installation, configuration and API examples.
+[See full CHANGELOG](CHANGELOG.md) | [Security Scan Response](SECURITY_SCAN_NOTICE.md)
 
 ---
 
-## Repository structure (high level)
+## ⚠️ CRITICAL NOTICE: What This Version Actually Includes
 
-- icalendar-sync/
-  - README.md — full skill documentation (usage, API, security)
-  - src/icalendar_sync/ — implementation modules (calendar client, i18n, translations, CLI entrypoint)
-  - skill.yaml, SKILL.md, CLAWHUB_METADATA.yaml — metadata and registry declarations
-  - CHANGELOG.md, SECURITY_SCAN_NOTICE.md, BUGFIX_NOTES.md — release and security artefacts
-- README.md — branch overview (this file)
-- LICENSE — repository license (see skill folders for per-skill license details if present)
+**Version 2.2.12 is the ENHANCED METADATA RELEASE** with Cyrillic support and headless configuration. Some documentation files (DOCUMENTATION.md, ARCHITECTURE.md) describe **planned future features** that are not yet implemented.
+
+**IMPORTANT: See SECURITY_SCAN_NOTICE.md for detailed responses to ClawHub security scan concerns.**
+
+### ✅ ACTUALLY IMPLEMENTED IN v2.2.12:
+
+**Fully functional modules:**
+- `src/icalendar_sync/calendar.py` (33 KB) - Complete CalDAV client
+  - Event CRUD operations (create, read, update, delete)
+  - Credential management (keyring + .env fallback)
+  - Input validation and security checks
+  - Rate limiting (10 calls/60s)
+  - Recurring events (RRULE support)
+  - Multi-calendar support
+  - Cyrillic/Unicode calendar names
+  - CLI interface with headless mode
+
+- `src/icalendar_sync/__main__.py` - Module entry point
+- `src/icalendar_sync/i18n.py` (40 KB) - Internationalization for 20 languages
+- `src/icalendar_sync/translations_extended.py` - Extended translations
+- `src/icalendar_sync/translations_extended2.py` - Additional translations
+
+### ❌ NOT IMPLEMENTED (Mentioned in Extended Docs Only):
+
+**These modules do NOT exist as separate files in v2.2.6:**
+- ❌ `calendar_vault.py` - Described in ARCHITECTURE.md but not implemented
+- ❌ `privacy_engine.py` - Mentioned in DOCUMENTATION.md but not a separate module
+- ❌ `rate_limiter.py` - Rate limiting is embedded in calendar.py, not standalone
+- ❌ `connector/` directory - No separate connector modules
+- ❌ Advanced multi-agent isolation system
+
+**Why the documentation mismatch?**
+- DOCUMENTATION.md and ARCHITECTURE.md were written for a future v3.0 architecture
+- v2.2.6 consolidates all logic into `calendar.py` for simplicity
+- Some "modules" exist as functions/classes within calendar.py, not separate files
+- Extended docs are kept for reference/planning but describe future state
+
+**What to trust:**
+- ✅ **THIS README** - Accurate for v2.2.6
+- ✅ **SKILL.md** - Accurate for v2.2.6  
+- ✅ **skill.yaml** - Correct metadata
+- ✅ **CLAWHUB_METADATA.yaml** - Explicit credential declarations (NEW v2.2.6)
+- ✅ **SECURITY_SCAN_NOTICE.md** - Addresses all ClawHub concerns (NEW v2.2.6)
+- ✅ **CHANGELOG.md** - Complete version history
+- ⚠️ **DOCUMENTATION.md** - Mix of current + future features (read with caution)
+- ⚠️ **ARCHITECTURE.md** - Describes future v3.0 architecture
+
+### 🔒 CREDENTIALS REQUIRED:
+
+**Explicitly declared in registry metadata (v2.2.6 fix):**
+- `ICLOUD_USERNAME` - Your Apple ID (e.g., user@icloud.com)
+- `ICLOUD_APP_PASSWORD` - App-Specific Password from [https://appleid.apple.com](https://appleid.apple.com)
+
+**Declared in:**
+- skill.yaml (required: true)
+- CLAWHUB_METADATA.yaml (explicit declarations with security notes)
+- SECURITY_SCAN_NOTICE.md (detailed explanation)
+
+**Storage options:**
+1. ✅ **Preferred**: System keyring (macOS Keychain, Windows Credential Manager, Linux Secret Service)
+2. ⚠️ **Fallback**: `~/.openclaw/.env` file (chmod 0600) - plaintext, use ONLY for development
+
+The .env fallback is **explicitly documented and intentional** for development environments where keyring backends may not be available.
 
 ---
 
-## Compatibility
+## ✨ Features
 
-- Target OpenClaw: 2.0 and above
-- Python: 3.9+ recommended (see individual skill README for exact requirements)
-- Platform: Cross-platform. Keyring backends supported on macOS (Keychain), Windows (Credential Manager) and common Linux secret services (GNOME Keyring, KWallet). A plaintext .env fallback is documented for development only.
+### 💪 Core Capabilities
+
+- ✅ **Full Calendar Sync** - Bidirectional sync with iCloud
+- 🌐 **CalDAV Protocol** - Standard-compliant implementation
+- 🗓️ **Event Management** - Create, read, update, delete events
+- 🔁 **Recurring Events** - Full RRULE support (daily, weekly, monthly, yearly)
+- ⏰ **Alarms & Reminders** - Multiple alarms per event
+- 📱 **Multi-Device** - Instant sync across iPhone, iPad, Mac
+- 📂 **Multiple Calendars** - Work, Personal, Custom calendars
+- 🌍 **Unicode Support** - Cyrillic, CJK, and all international scripts
+- ⚡ **Conflict Detection** - Automatic scheduling conflict warnings
+
+### 🔒 Security Features (v2.2.6)
+
+- 🔑 **Keyring Integration** - Secure credential storage in OS keychain
+- 🛡️ **Input Validation** - Protection against injection attacks (Unicode-aware)
+- 🚫 **Rate Limiting** - DoS protection (10 calls/60s)
+- 🔐 **SSL Verification** - Enforced certificate validation
+- 🧹 **Log Filtering** - Automatic credential redaction
+- 🧵 **Thread Safety** - Safe concurrent access
+- 📝 **Atomic Operations** - Safe file writes
+- ⏱️ **Timeout Protection** - 30s timeout on interactive inputs
+- ⚠️ **CLI Credential Warnings** - Documented risks of command-line password exposure
+- 🐳 **Docker Secrets Support** - Secure deployment patterns
 
 ---
 
-## Installation (example for development)
+## 🚀 Quick Start
 
-Clone the parent OpenClaw repo or this repository and install the skill in editable mode to try locally:
+### Installation
 
 ```bash
-# Clone the repo (or the OpenClaw parent repo if you want the full framework)
-git clone https://github.com/h8kxrfp68z-lgtm/iCalendar-Sync.git
-cd iCalendar-Sync/icalendar-sync
-
-# Install in editable mode for development
+# From source
+git clone https://github.com/h8kxrfp68z-lgtm/OpenClaw.git
+cd OpenClaw/icalendar-sync
 pip install -e .
-```
 
-When packaged/published, skills may be available via pip or other distribution channels. Refer to each skill's README for exact packaging instructions.
+# Or via pip (when published)
+pip install openclaw-icalendar-sync
+Setup
+Interactive Setup (Default)
+bash
+# Interactive setup wizard
+icalendar-sync setup
+You'll need:
 
----
+Apple ID email (e.g., user@icloud.com)
 
-## Quick usage pointers (icalendar-sync)
+App-Specific Password from https://appleid.apple.com
 
-Refer to icalendar-sync/README.md for the full guide. Common commands:
+Go to: Sign-In & Security → App-Specific Passwords
 
-- Interactive setup:
-  icalendar-sync setup
+Create new password for "OpenClaw iCalendar Sync"
 
-- Headless setup (CI, automation — prefer environment variables or secret managers over CLI passwords):
-  icalendar-sync setup --username "user@icloud.com" --password "app-specific-password" --non-interactive
+Headless Setup (Automated)
+bash
+# For automation, Docker, CI/CD, OpenClaw agents
+icalendar-sync setup \
+  --username "user@icloud.com" \
+  --password "xxxx-xxxx-xxxx-xxxx" \
+  --non-interactive
+⚠️ SECURITY WARNING: Avoid passing passwords on CLI on multi-user systems. Use environment variables or secrets manager instead.
 
-- List calendars:
-  icalendar-sync list
+Credentials are stored securely in:
 
-- Get events:
-  icalendar-sync get --calendar "Work" --days 7
+macOS: Keychain
 
-- Create events (JSON input supported):
-  icalendar-sync create --calendar "Personal" --json event.json
+Windows: Credential Manager
 
-- Module usage:
-  python -m icalendar_sync list
+Linux: Secret Service (GNOME Keyring/KWallet)
 
-API usage examples and schema definitions are in icalendar-sync/README.md and the code under src/icalendar_sync/.
+Fallback: ~/.openclaw/.env (chmod 0600, plaintext, development only)
 
----
+📖 Usage
+List Calendars
+bash
+icalendar-sync list
+Output:
 
-## Credentials & Security
+text
+📅 Available Calendars (5):
 
-Security is a priority. Skills in this branch should declare required credentials explicitly in metadata files (skill.yaml / CLAWHUB_METADATA.yaml). Typical guidance:
+  -  Personal
+  -  Work
+  -  Family
+  -  Личный      # Cyrillic support!
+  -  Работа      # Russian calendar names
+Get Events
+bash
+# Next 7 days (default)
+icalendar-sync get --calendar "Work"
 
-- Preferred storage: OS keyring (Keychain, Credential Manager, Secret Service)
-- Development fallback: ~/.openclaw/.env (must be file-permissions restricted, chmod 600). This is for development only and should never be used in production or shared environments.
-- Avoid passing secrets on the command line in multi-user systems; use environment variables, Docker secrets or CI secret stores.
+# Cyrillic calendar names
+icalendar-sync get --calendar "Личный" --days 7
+icalendar-sync get --calendar "Работа" --days 30
 
-Required environment variables for the calendar skill:
-- ICLOUD_USERNAME — Apple ID (email)
-- ICLOUD_APP_PASSWORD — App-specific password from appleid.apple.com
+# English calendars still work
+icalendar-sync get --calendar "Personal" --days 30
+Create Event
+Simple Event
+bash
+icalendar-sync create --calendar "Work" --json '{
+  "summary": "Team Meeting",
+  "dtstart": "2026-02-12T14:00:00+03:00",
+  "dtend": "2026-02-12T15:00:00+03:00",
+  "description": "Q1 Planning Discussion",
+  "location": "Conference Room A"
+}'
+Cyrillic Event
+bash
+icalendar-sync create --calendar "Личный" --json '{
+  "summary": "Встреча с врачом",
+  "dtstart": "2026-02-15T10:00:00+03:00",
+  "dtend": "2026-02-15T11:00:00+03:00",
+  "description": "Ежегодный осмотр",
+  "location": "Поликлиника №5"
+}'
+From JSON File
+bash
+# Create event.json
+cat > event.json << EOF
+{
+  "summary": "Doctor Appointment",
+  "dtstart": "2026-02-15T10:00:00+03:00",
+  "dtend": "2026-02-15T11:00:00+03:00",
+  "description": "Annual checkup",
+  "alarms": [
+    {"minutes": 60, "description": "1 hour before"},
+    {"minutes": 15, "description": "15 minutes before"}
+  ]
+}
+EOF
 
-See icalendar-sync/SECURITY_SCAN_NOTICE.md for the project's security response and risk considerations.
+icalendar-sync create --calendar "Personal" --json event.json
+Recurring Event
+bash
+icalendar-sync create --calendar "Work" --json '{
+  "summary": "Weekly Standup",
+  "dtstart": "2026-02-12T09:00:00+03:00",
+  "dtend": "2026-02-12T09:30:00+03:00",
+  "rrule": {
+    "freq": "WEEKLY",
+    "interval": 1,
+    "byday": ["MO", "WE", "FR"],
+    "count": 50
+  }
+}'
+Delete Event
+bash
+# First, get the event UID
+icalendar-sync get --calendar "Work"
 
----
+# Then delete
+icalendar-sync delete --calendar "Личный" --uid "event-uid-here"
+Module Execution
+bash
+# All commands now work as Python module
+python -m icalendar_sync list
+python -m icalendar_sync setup
+python -m icalendar_sync get --calendar "Личный" --days 7
+python -m icalendar_sync create --calendar "Work" --json event.json
+📚 API Usage (Python)
+python
+from icalendar_sync import CalendarManager
+from datetime import datetime, timezone
 
-## Metadata & Registry
+# Initialize
+manager = CalendarManager()
 
-This branch aims to include multiple metadata formats to maximize registry discovery (examples included in icalendar-sync):
-- skill.yaml
-- SKILL.md
-- CLAWHUB_METADATA.yaml
-- Additional registry artifacts (clawhub.json, REGISTRY.yaml) where present
+# List calendars (including Cyrillic names)
+calendars = manager.list_calendars()
+print(f"Found {len(calendars)} calendars")
 
-If you are integrating a skill into ClawHub or another registry, consult the skill's metadata files for required fields and declared credentials.
+# Get events from Russian calendar
+events = manager.get_events("Личный", days_ahead=7)
 
----
+# Create event in Cyrillic calendar
+event_data = {
+    "summary": "Проектный дедлайн",
+    "dtstart": datetime(2026, 2, 20, 17, 0, tzinfo=timezone.utc),
+    "dtend": datetime(2026, 2, 20, 18, 0, tzinfo=timezone.utc),
+    "description": "Финальная сдача проекта",
+    "location": "Онлайн",
+    "alarms": [
+        {"minutes": 1440, "description": "За 1 день"},
+        {"minutes": 60, "description": "За 1 час"}
+    ]
+}
 
-## Contributing
+success = manager.create_event(
+    calendar_name="Работа",
+    event_data=event_data,
+    check_conflicts=True,
+    auto_confirm=False
+)
 
-Contributions are welcome. Please follow these guidelines:
+if success:
+    print("✅ Событие создано успешно")
+🛠️ Configuration
+Environment Variables
+bash
+# Required (or use keyring)
+export ICLOUD_USERNAME="user@icloud.com"
+export ICLOUD_APP_PASSWORD="xxxx-xxxx-xxxx-xxxx"
 
-- Open an issue to discuss major changes or feature proposals first.
-- Fork the repo and create topic branches for changes.
-- Ensure code is linted and tests (if present) pass.
-- Update CHANGELOG.md and the skill-level README when adding features or fixing bugs.
-- Provide clear metadata (skill.yaml / CLAWHUB_METADATA.yaml) for any new skill added to this branch.
-- Respect the repository license; include SPDX headers where appropriate.
+# Optional
+export DEFAULT_CALENDAR="Personal"
+export LOG_LEVEL="INFO"  # DEBUG, INFO, WARNING, ERROR
+Security Limits
+python
+# Configurable in calendar.py
+MAX_CALENDAR_NAME_LENGTH = 255
+MAX_SUMMARY_LENGTH = 500
+MAX_DESCRIPTION_LENGTH = 5000
+MAX_LOCATION_LENGTH = 500
+MAX_JSON_FILE_SIZE = 1048576  # 1MB
+MAX_DAYS_AHEAD = 365
+RATE_LIMIT_CALLS = 10
+RATE_LIMIT_WINDOW = 60  # seconds
+INPUT_TIMEOUT = 30  # seconds
+📊 Event Schema
+Required Fields
+summary (string): Event title (Unicode supported)
 
-Suggested PR checklist:
-- README and SKILL.md updated where behavior changes
-- Tests added or updated
-- Security implications documented if new credentials or network interactions are introduced
+dtstart (ISO 8601 datetime): Start time
 
----
+dtend (ISO 8601 datetime): End time
 
-## Releases & Changelog
+Optional Fields
+description (string): Event details (Unicode supported)
 
-See each skill folder for its changelog (e.g., icalendar-sync/CHANGELOG.md) and release notes. This top-level branch collects skill revisions but per-skill versioning is authoritative.
+location (string): Event location (Unicode supported)
 
----
+status (string): CONFIRMED, TENTATIVE, CANCELLED
 
-## License
+priority (int): 0-9 (0=undefined, 1=highest, 9=lowest)
 
-Each skill should include a LICENSE or declare its license in the skill metadata. Check the LICENSE file next to the skill folder (e.g., icalendar-sync/LICENSE) for license details. If there is a top-level LICENSE, it applies to repository-wide assets not otherwise licensed.
+attendees (array): List of attendee emails
 
----
+alarms (array): List of alarm objects
 
-## Support & Reporting Security Issues
+rrule (object): Recurrence rule
 
-- For bugs and feature requests, open an issue in this repository (or the parent OpenClaw repository if more appropriate).
-- For security issues, follow the disclosure instructions in the skill's SECURITY.md or SECURITY_SCAN_NOTICE.md file. Do not post sensitive security details in public issues — follow the project's security disclosure policy.
+Datetime Format
+Use ISO 8601 with timezone:
 
----
-
-This file was updated via GitHub Copilot Chat Assistant.
+text
+2026-02-12T14:00:00+03:00  # Moscow time
+2026-02-12T11:00:00Z       # UTC
+2026-02-12T06:00:00-05:00  # EST
+Recurrence Rule (RRULE)
+json
+{
+  "freq": "WEEKLY",
+  "interval": 1,
+  "count": 10,
+  "until": "2026-12-31",
+  "
