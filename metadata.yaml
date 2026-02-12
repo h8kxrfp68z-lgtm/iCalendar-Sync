@@ -1,5 +1,5 @@
 name: "iCalendar Sync"
-version: "2.2.16"
+version: "2.2.18"
 description: "Synchronizes calendar events with iCloud CalDAV server"
 author: "Black_Temple"
 license: "MIT"

@@ -1,7 +1,7 @@
 {
   "name": "icalendar-sync",
   "display_name": "iCalendar Sync",
-  "version": "2.2.16",
+  "version": "2.2.18",
   "description": "Professional iCloud Calendar integration for OpenClaw via CalDAV",
   "author": "Black_Temple",
   "license": "MIT",

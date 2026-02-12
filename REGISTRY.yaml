@@ -7,7 +7,7 @@
 skill:
   name: icalendar-sync
   display_name: "iCalendar Sync"
-  version: "2.2.16"
+  version: "2.2.18"
   type: runtime  # NOT instruction-only
 
 # Author & License
