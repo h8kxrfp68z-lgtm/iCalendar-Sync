@@ -5,7 +5,7 @@ iCalendar Sync - Main Calendar Manager
 Professional iCloud Calendar integration
 
 @author: Black_Temple
-@version: 2.2.31
+@version: 2.3.0
 """
 
 import os
@@ -38,7 +38,7 @@ except ImportError as e:
     sys.exit(1)
 
 __author__ = "Black_Temple"
-__version__ = "2.2.31"
+__version__ = "2.3.0"
 
 # Security constants
 MAX_CALENDAR_NAME_LENGTH = 255
@@ -690,6 +690,295 @@ class CalendarManager:
             logger.error(f"Unexpected error deleting event: {type(e).__name__}")
             return False
 
+    def update_event(
+        self,
+        calendar_name: str,
+        event_uid: str,
+        update_data: Dict,
+        recurrence_id: Optional[str] = None,
+        mode: str = 'single'
+    ) -> bool:
+        """
+        Update existing event with smart recurrence handling
+
+        Args:
+            calendar_name: Name of calendar
+            event_uid: UID of event to update
+            update_data: Dictionary with fields to update
+            recurrence_id: ISO datetime of specific instance (for recurring events)
+            mode: Update mode - 'single', 'all', or 'future'
+
+        Returns:
+            True if successful, False otherwise
+        """
+        # Validate inputs
+        if not validate_calendar_name(calendar_name):
+            print("❌ Invalid calendar name")
+            logger.error("Invalid calendar name provided")
+            return False
+
+        if not event_uid or not isinstance(event_uid, str):
+            print("❌ Valid event UID required")
+            return False
+
+        event_uid = event_uid.strip()
+        if len(event_uid) > 500:
+            print("❌ Invalid event UID (too long)")
+            return False
+
+        if mode not in ['single', 'all', 'future']:
+            print("❌ Invalid mode. Must be 'single', 'all', or 'future'")
+            return False
+
+        if not self.connect():
+            return False
+
+        self._rate_limiter.wait_if_needed()
+
+        try:
+            principal = self.client.principal()
+            calendar = principal.calendar(name=calendar_name)
+
+            # Fetch existing event
+            event_obj = calendar.event_by_uid(event_uid)
+            ical_data = event_obj.data
+
+            # Parse iCalendar data
+            cal = iCal.from_ical(ical_data)
+            event = None
+            for component in cal.walk():
+                if component.name == 'VEVENT':
+                    event = component
+                    break
+
+            if event is None:
+                print("❌ Could not parse event data")
+                return False
+
+            # Check if event has RRULE (is recurring)
+            has_rrule = 'RRULE' in event
+
+            # Handle recurrence based on mode
+            if has_rrule and mode == 'single' and recurrence_id:
+                # Create exception for single instance
+                print(f"📅 Creating exception for instance: {recurrence_id}")
+                return self._update_single_instance(
+                    calendar, event_uid, recurrence_id, update_data, cal, event
+                )
+
+            elif has_rrule and mode == 'future' and recurrence_id:
+                # Split series: update current and future
+                print(f"🔮 Updating this and future instances from: {recurrence_id}")
+                return self._update_future_instances(
+                    calendar, event_uid, recurrence_id, update_data, cal, event
+                )
+
+            elif has_rrule and mode == 'all':
+                # Update master recurrence rule
+                print("🔁 Updating entire recurrence series")
+                return self._update_all_instances(
+                    calendar, event_obj, update_data, cal, event
+                )
+
+            else:
+                # Simple update (non-recurring or mode='all' on non-recurring)
+                print("✏️  Updating event")
+                return self._update_simple(
+                    calendar, event_obj, update_data, cal, event
+                )
+
+        except NotFoundError:
+            print("❌ Event or calendar not found")
+            logger.error("Event/calendar not found")
+            return False
+        except DAVError:
+            print("❌ CalDAV error")
+            logger.error("Error updating event")
+            return False
+        except Exception as e:
+            print("❌ Error updating event")
+            logger.error(f"Unexpected error updating event: {type(e).__name__}: {str(e)}")
+            return False
+
+    def _update_simple(self, calendar, event_obj, update_data: Dict, cal, event) -> bool:
+        """Update a simple (non-recurring) event or all instances of recurring event"""
+        # Apply updates to event
+        self._apply_updates_to_event(event, update_data)
+
+        # Save back to server
+        event_obj.data = cal.to_ical()
+        event_obj.save()
+
+        print("✅ Event updated successfully")
+        logger.info("Event updated")
+        return True
+
+    def _update_all_instances(self, calendar, event_obj, update_data: Dict, cal, event) -> bool:
+        """Update the master recurrence rule (affects all instances)"""
+        # Apply updates to master event
+        self._apply_updates_to_event(event, update_data)
+
+        # Save back to server
+        event_obj.data = cal.to_ical()
+        event_obj.save()
+
+        print("✅ All instances updated successfully")
+        logger.info("All recurrence instances updated")
+        return True
+
+    def _update_single_instance(
+        self, calendar, event_uid: str, recurrence_id: str,
+        update_data: Dict, cal, master_event
+    ) -> bool:
+        """Create an exception for a single instance of a recurring event"""
+        try:
+            # Parse recurrence_id datetime
+            recurrence_dt = datetime.fromisoformat(recurrence_id)
+            if recurrence_dt.tzinfo is None:
+                recurrence_dt = recurrence_dt.replace(tzinfo=timezone.utc)
+
+            # Create exception event (copy of master with RECURRENCE-ID)
+            exception_event = iEvent()
+
+            # Copy essential fields from master
+            exception_event.add('uid', master_event['UID'])
+            exception_event.add('dtstamp', datetime.now(timezone.utc))
+            exception_event.add('recurrence-id', recurrence_dt)
+
+            # Copy existing fields that aren't being updated
+            for key in ['SUMMARY', 'LOCATION', 'DESCRIPTION', 'STATUS', 'PRIORITY']:
+                if key in master_event and key.lower() not in update_data:
+                    exception_event.add(key.lower(), master_event[key])
+
+            # Apply updates
+            self._apply_updates_to_event(exception_event, update_data)
+
+            # Set dtstart/dtend if not in update_data
+            if 'dtstart' not in update_data:
+                exception_event.add('dtstart', recurrence_dt)
+            if 'dtend' not in update_data:
+                # Calculate duration from master event
+                master_start = master_event['DTSTART'].dt
+                master_end = master_event['DTEND'].dt
+                duration = master_end - master_start
+                exception_event.add('dtend', recurrence_dt + duration)
+
+            # Create new calendar with exception
+            exception_cal = iCal()
+            exception_cal.add('prodid', '-//iCalendar Sync//EN')
+            exception_cal.add('version', '2.0')
+            exception_cal.add_component(exception_event)
+
+            # Save exception event to server
+            calendar.save_event(exception_cal.to_ical().decode('utf-8'))
+
+            print(f"✅ Exception created for instance: {recurrence_id}")
+            logger.info(f"Created exception for recurrence instance")
+            return True
+
+        except ValueError as e:
+            print(f"❌ Invalid recurrence_id format: {e}")
+            return False
+
+    def _update_future_instances(
+        self, calendar, event_uid: str, recurrence_id: str,
+        update_data: Dict, cal, master_event
+    ) -> bool:
+        """Split series: end original series before recurrence_id, create new series from recurrence_id"""
+        try:
+            # Parse recurrence_id datetime
+            split_dt = datetime.fromisoformat(recurrence_id)
+            if split_dt.tzinfo is None:
+                split_dt = split_dt.replace(tzinfo=timezone.utc)
+
+            # Update master event RRULE to end before split point
+            if 'RRULE' in master_event:
+                rrule = master_event['RRULE']
+                # Set UNTIL to day before split
+                rrule['UNTIL'] = [split_dt - timedelta(days=1)]
+                master_event['RRULE'] = rrule
+
+            # Save modified master
+            event_obj = calendar.event_by_uid(event_uid)
+            event_obj.data = cal.to_ical()
+            event_obj.save()
+
+            # Create new series starting from split point
+            new_cal = iCal()
+            new_cal.add('prodid', '-//iCalendar Sync//EN')
+            new_cal.add('version', '2.0')
+
+            new_event = iEvent()
+            import uuid
+            new_event.add('uid', str(uuid.uuid4()))
+            new_event.add('dtstamp', datetime.now(timezone.utc))
+
+            # Copy and update fields from master
+            for key in ['SUMMARY', 'LOCATION', 'DESCRIPTION', 'STATUS', 'PRIORITY', 'RRULE']:
+                if key in master_event and key.lower() not in update_data:
+                    new_event.add(key.lower(), master_event[key])
+
+            # Set new start time
+            new_event.add('dtstart', split_dt)
+
+            # Calculate end time
+            master_start = master_event['DTSTART'].dt
+            master_end = master_event['DTEND'].dt
+            duration = master_end - master_start
+            new_event.add('dtend', split_dt + duration)
+
+            # Apply updates
+            self._apply_updates_to_event(new_event, update_data)
+
+            new_cal.add_component(new_event)
+            calendar.save_event(new_cal.to_ical().decode('utf-8'))
+
+            print(f"✅ Series split at {recurrence_id}. New series created with updates.")
+            logger.info("Split recurrence series and created new series")
+            return True
+
+        except ValueError as e:
+            print(f"❌ Invalid recurrence_id format: {e}")
+            return False
+
+    def _apply_updates_to_event(self, event, update_data: Dict):
+        """Apply update_data fields to an event component"""
+        # Update text fields with sanitization
+        if 'summary' in update_data:
+            event['SUMMARY'] = sanitize_text(update_data['summary'], MAX_SUMMARY_LENGTH)
+
+        if 'description' in update_data:
+            event['DESCRIPTION'] = sanitize_text(
+                update_data['description'], MAX_DESCRIPTION_LENGTH
+            )
+
+        if 'location' in update_data:
+            event['LOCATION'] = sanitize_text(update_data['location'], MAX_LOCATION_LENGTH)
+
+        # Update datetime fields
+        if 'dtstart' in update_data:
+            dtstart = update_data['dtstart']
+            if isinstance(dtstart, str):
+                dtstart = datetime.fromisoformat(dtstart)
+            if dtstart.tzinfo is None:
+                dtstart = dtstart.replace(tzinfo=timezone.utc)
+            event['DTSTART'] = dtstart
+
+        if 'dtend' in update_data:
+            dtend = update_data['dtend']
+            if isinstance(dtend, str):
+                dtend = datetime.fromisoformat(dtend)
+            if dtend.tzinfo is None:
+                dtend = dtend.replace(tzinfo=timezone.utc)
+            event['DTEND'] = dtend
+
+        # Update other fields
+        if 'status' in update_data:
+            event['STATUS'] = update_data['status']
+
+        if 'priority' in update_data and isinstance(update_data['priority'], int):
+            event['PRIORITY'] = max(0, min(9, update_data['priority']))
+
 
 def cmd_setup(args):
     """Interactive or headless setup of credentials"""
@@ -851,9 +1140,57 @@ def cmd_delete_event(args):
     if not args.calendar or not args.uid:
         print("❌ Calendar and event UID required")
         return
-    
+
     manager = CalendarManager()
     manager.delete_event(args.calendar, args.uid)
+
+
+def cmd_update_event(args):
+    """Update event with smart recurrence handling"""
+    if not args.calendar or not args.uid or not args.json:
+        print("❌ Calendar, event UID, and JSON data required")
+        return
+
+    try:
+        # Parse JSON
+        if os.path.isfile(args.json):
+            content = safe_file_read(args.json, MAX_JSON_FILE_SIZE)
+            if content is None:
+                print("❌ Could not read JSON file")
+                return
+            update_data = json.loads(content)
+        else:
+            # Limit inline JSON size
+            if len(args.json) > MAX_JSON_FILE_SIZE:
+                print("❌ JSON data too large")
+                return
+            update_data = json.loads(args.json)
+
+        # Convert string dates to datetime if present
+        if 'dtstart' in update_data and isinstance(update_data['dtstart'], str):
+            update_data['dtstart'] = datetime.fromisoformat(update_data['dtstart'])
+        if 'dtend' in update_data and isinstance(update_data['dtend'], str):
+            update_data['dtend'] = datetime.fromisoformat(update_data['dtend'])
+
+        # Determine mode and recurrence_id
+        mode = getattr(args, 'mode', 'single')
+        recurrence_id = getattr(args, 'recurrence_id', None)
+
+        manager = CalendarManager()
+        manager.update_event(
+            args.calendar,
+            args.uid,
+            update_data,
+            recurrence_id=recurrence_id,
+            mode=mode
+        )
+
+    except json.JSONDecodeError as e:
+        print(f"❌ Invalid JSON: {e}")
+        return
+    except ValueError as e:
+        print(f"❌ Invalid datetime format: {e}")
+        return
 
 
 def main():
@@ -867,6 +1204,8 @@ Examples:
   icalendar-sync list                                   # List calendars
   icalendar-sync get --calendar "Work" --days 7         # Get events
   icalendar-sync create --calendar "Personal" --json '{"summary":"Meeting","dtstart":"2026-02-10T14:00:00+03:00","dtend":"2026-02-10T15:00:00+03:00"}'
+  icalendar-sync update --calendar "Work" --uid "event-id" --json '{"summary":"Updated Meeting"}'
+  icalendar-sync update --calendar "Work" --uid "event-id" --json data.json --recurrence-id "2026-02-20T10:00:00" --mode single
   icalendar-sync delete --calendar "Work" --uid "event-id"
         """
     )
@@ -903,12 +1242,25 @@ Examples:
                               help='Auto-confirm without prompts')
     create_parser.set_defaults(func=cmd_create_event)
     
+    # Update event
+    update_parser = subparsers.add_parser('update', help='Update calendar event')
+    update_parser.add_argument('--calendar', required=True, help='Calendar name')
+    update_parser.add_argument('--uid', required=True, help='Event UID')
+    update_parser.add_argument('--json', required=True,
+                              help='JSON with update data (file path or JSON string)')
+    update_parser.add_argument('--recurrence-id',
+                              help='ISO datetime of specific instance (for recurring events)')
+    update_parser.add_argument('--mode', default='single',
+                              choices=['single', 'all', 'future'],
+                              help='Update mode: single instance, all instances, or this and future (default: single)')
+    update_parser.set_defaults(func=cmd_update_event)
+
     # Delete event
     delete_parser = subparsers.add_parser('delete', help='Delete calendar event')
     delete_parser.add_argument('--calendar', required=True, help='Calendar name')
     delete_parser.add_argument('--uid', required=True, help='Event UID')
     delete_parser.set_defaults(func=cmd_delete_event)
-    
+
     args = parser.parse_args()
     
     if not args.command:

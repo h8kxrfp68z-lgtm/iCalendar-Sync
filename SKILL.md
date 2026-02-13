@@ -83,9 +83,50 @@ python -m icalendar_sync get --calendar "Personal" --days 7
 ```bash
 python -m icalendar_sync create \
   --calendar "Personal" \
-  --title "Meeting" \
-  --start "2024-06-15 14:00" \
-  --duration 60
+  --json '{
+    "summary": "Meeting",
+    "dtstart": "2026-02-15T14:00:00+03:00",
+    "dtend": "2026-02-15T15:00:00+03:00"
+  }'
+```
+
+### Update Event
+
+**Update simple event:**
+```bash
+python -m icalendar_sync update \
+  --calendar "Personal" \
+  --uid "event-uid-here" \
+  --json '{"summary": "Updated Meeting Title"}'
+```
+
+**Update single instance of recurring event:**
+```bash
+python -m icalendar_sync update \
+  --calendar "Work" \
+  --uid "recurring-event-uid" \
+  --recurrence-id "2026-02-20T09:00:00+03:00" \
+  --mode single \
+  --json '{"dtstart": "2026-02-21T09:00:00+03:00"}'
+```
+
+**Update all instances:**
+```bash
+python -m icalendar_sync update \
+  --calendar "Work" \
+  --uid "recurring-event-uid" \
+  --mode all \
+  --json '{"summary": "New Title for All Instances"}'
+```
+
+**Update this and future instances:**
+```bash
+python -m icalendar_sync update \
+  --calendar "Work" \
+  --uid "recurring-event-uid" \
+  --recurrence-id "2026-03-01T09:00:00+03:00" \
+  --mode future \
+  --json '{"dtstart": "2026-03-01T14:00:00+03:00"}'
 ```
 
 ### Delete Event

@@ -1,8 +1,8 @@
 {
   "ownerId": "kn7bd0t8raj7bmj3te8brtxm1580t07m",
   "slug": "icalendar-sync",
-  "version": "2.2.31",
-  "publishedAt": 1770967720000,
+  "version": "2.3.0",
+  "publishedAt": 1770970340000,
   "forceReindex": true,
   "cacheInvalidate": true
 }

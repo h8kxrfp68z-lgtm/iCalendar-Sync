@@ -1,5 +1,5 @@
 # =============================================================================
-# iCalendar Sync v2.2.31 - OpenClaw Skill Definition
+# iCalendar Sync v2.3.0 - OpenClaw Skill Definition
 # =============================================================================
 #
 # CRITICAL: This skill REQUIRES credentials:
@@ -8,10 +8,11 @@
 #
 # These are explicitly declared as REQUIRED in ALL metadata files.
 #
-# NEW in v2.2.31:
-#   - 🗑️ Repository cleanup: removed 7 duplicate metadata files
-#   - 📦 Minimal structure: only skill.yaml and _meta.json remain
-#   - ✅ Version sync: all modules updated to 2.2.31
+# NEW in v2.3.0:
+#   - ✨ UPDATE command: modify existing events without breaking UID
+#   - 🔁 Smart Recurrence: update single instance, all, or future instances
+#   - 📅 Exception handling: RECURRENCE-ID support for series modifications
+#   - 🎯 Modes: --mode single/all/future for granular control
 #
 # From v2.2.16:
 #   - 🔧 ClawHub integration fixes
@@ -48,7 +49,7 @@
 
 name: icalendar-sync
 display_name: "iCalendar Sync"
-version: 2.2.31
+version: 2.3.0
 description: >
   Professional iCloud Calendar integration for OpenClaw.
   Provides bidirectional CalDAV sync with iCloud calendars.
@@ -156,7 +157,12 @@ commands:
     description: Create a new calendar event
     usage: "icalendar-sync create --calendar <name> --json <data>"
     permissions: [create]
-  
+
+  - name: update
+    description: Update existing calendar event with smart recurrence handling
+    usage: "icalendar-sync update --calendar <name> --uid <uid> --json <data> [--recurrence-id <datetime>] [--mode single|all|future]"
+    permissions: [update]
+
   - name: delete
     description: Remove event from calendar
     usage: "icalendar-sync delete --calendar <name> --uid <uid>"
