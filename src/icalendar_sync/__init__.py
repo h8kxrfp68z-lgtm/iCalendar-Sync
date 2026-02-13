@@ -5,12 +5,12 @@ iCalendar Sync for OpenClaw
 Professional iCloud Calendar integration with Zero Trust security
 
 @author: Black_Temple
-@version: 2.2.12
+@version: 2.2.31
 @license: MIT
 """
 
 __author__ = "Black_Temple"
-__version__ = "2.2.12"
+__version__ = "2.2.31"
 __license__ = "MIT"
 
 from .calendar import CalendarManager

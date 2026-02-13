@@ -2,7 +2,7 @@
 
 **Professional iCloud Calendar integration with enterprise-grade security**
 
-[![Version](https://img.shields.io/badge/version-2.2.30-blue.svg)](https://github.com/h8kxrfp68z-lgtm/iCalendar-Sync/releases)
+[![Version](https://img.shields.io/badge/version-2.2.31-blue.svg)](https://github.com/h8kxrfp68z-lgtm/iCalendar-Sync/releases)
 [![Security Rating](https://img.shields.io/badge/security-A-brightgreen.svg)](SECURITY.md)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
@@ -10,12 +10,12 @@
 
 ---
 
-## 🎉 New in v2.2.30 (Feb 12, 2026)
+## 🎉 New in v2.2.31 (Feb 13, 2026)
 
-- **🔒 Enhanced Security Documentation**: Removed all unsafe credential handling examples
-- **📝 Environment Variables**: Documented as standard fallback for headless environments
-- **✅ Registry Cache Issue**: Added comprehensive documentation for ClawHub scanner
-- **🧹 Clean Metadata**: All 7 metadata files consistent and correct
+- **🗑️ Repository Cleanup**: Removed 7 duplicate/redundant metadata files
+- **📦 Minimal Structure**: Only essential files remain (skill.yaml, _meta.json)
+- **🧹 Clean Architecture**: Removed DOCUMENTATION.md (redundant), empty README_FOR_CLAWHUB_SCANNER.md
+- **✅ Version Sync**: All version numbers updated across all modules
 
 ## Key Features
 
@@ -30,7 +30,7 @@
 
 ## ✨ What This Version Includes
 
-**Version 2.2.30** is a production-ready iCloud Calendar sync skill with:
+**Version 2.2.31** is a production-ready iCloud Calendar sync skill with:
 
 ### ✅ Fully Implemented Features:
 
