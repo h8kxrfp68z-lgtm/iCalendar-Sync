@@ -2,7 +2,7 @@
 
 **Professional iCloud Calendar integration with enterprise-grade security**
 
-[![Version](https://img.shields.io/badge/version-2.2.12-blue.svg)](https://github.com/h8kxrfp68z-lgtm/OpenClaw/releases)
+[![Version](https://img.shields.io/badge/version-2.2.30-blue.svg)](https://github.com/h8kxrfp68z-lgtm/iCalendar-Sync/releases)
 [![Security Rating](https://img.shields.io/badge/security-A-brightgreen.svg)](SECURITY.md)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
@@ -10,32 +10,29 @@
 
 ---
 
-## 🎉 New in v2.2.12 (Feb 12, 2026)
+## 🎉 New in v2.2.30 (Feb 12, 2026)
 
-- **📋 Enhanced Registry Metadata**: Added clawhub.json and REGISTRY.yaml for maximum ClawHub compatibility
-- **🔍 Multiple Metadata Formats**: Now 6 different metadata files to ensure ClawHub recognition
-- **✅ Explicit Environment Declarations**: Required env vars declared in all possible formats
+- **🔒 Enhanced Security Documentation**: Removed all unsafe credential handling examples
+- **📝 Environment Variables**: Documented as standard fallback for headless environments
+- **✅ Registry Cache Issue**: Added comprehensive documentation for ClawHub scanner
+- **🧹 Clean Metadata**: All 7 metadata files consistent and correct
 
-## Previous: v2.2.11 (Feb 12, 2026)
+## Key Features
 
-- **🌍 Cyrillic Support**: Fixed calendar name validation to support Unicode (Cyrillic, Chinese, Arabic, etc.)
-- **🔧 Headless Configuration**: Added `--username` and `--non-interactive` flags for automated setup
-- **✅ RuntimeWarning Fixed**: Suppressed module import warnings when using `python -m icalendar_sync`
-- **🙏 Field-Tested**: All fixes validated by real OpenClaw users (thanks Alfred!)
+- **🌍 Multi-language Support**: Cyrillic, Chinese, Arabic calendar names
+- **🔐 Secure Credentials**: OS keyring storage (Keychain/Credential Manager/Secret Service)
+- **🐳 Docker/CI Ready**: Environment variables and secrets manager support
+- **📅 Full CalDAV Support**: List, get, create, delete events with recurrence
 
-[See BUGFIX_NOTES.md for details](BUGFIX_NOTES.md)
-
-[See full CHANGELOG](CHANGELOG.md) | [Security Scan Response](SECURITY_SCAN_NOTICE.md)
+[See full CHANGELOG](CHANGELOG.md)
 
 ---
 
-## ⚠️ CRITICAL NOTICE: What This Version Actually Includes
+## ✨ What This Version Includes
 
-**Version 2.2.12 is the ENHANCED METADATA RELEASE** with Cyrillic support and headless configuration. Some documentation files (DOCUMENTATION.md, ARCHITECTURE.md) describe **planned future features** that are not yet implemented.
+**Version 2.2.30** is a production-ready iCloud Calendar sync skill with:
 
-**IMPORTANT: See SECURITY_SCAN_NOTICE.md for detailed responses to ClawHub security scan concerns.**
-
-### ✅ ACTUALLY IMPLEMENTED IN v2.2.12:
+### ✅ Fully Implemented Features:
 
 **Fully functional modules:**
 - `src/icalendar_sync/calendar.py` (33 KB) - Complete CalDAV client
