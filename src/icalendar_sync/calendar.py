@@ -1810,7 +1810,13 @@ def build_manager(args):
     if provider == "macos-native":
         return MacOSNativeCalendarManager()
 
-    credential_source = (getattr(args, "storage", None) or os.getenv("ICALENDAR_SYNC_STORAGE", "auto")).strip()
+    raw_storage = getattr(args, "storage", None)
+    credential_source = (raw_storage or os.getenv("ICALENDAR_SYNC_STORAGE", "auto")).strip()
+    explicit_config = bool(getattr(args, "config", None))
+    # If config path is provided explicitly and storage wasn't explicitly set,
+    # prefer file credentials to avoid accidental stale env/keyring usage.
+    if explicit_config and raw_storage is None and credential_source == "auto":
+        credential_source = "file"
 
     return CalendarManager(
         config_path=getattr(args, "config", None),
@@ -1972,8 +1978,8 @@ Examples:
     list_parser = subparsers.add_parser('list', help='List calendars')
     list_parser.add_argument('--provider', choices=['caldav', 'macos-native'], default='caldav',
                             help='Calendar provider backend')
-    list_parser.add_argument('--storage', choices=['auto', 'keyring', 'env', 'file'], default='auto',
-                            help='Credential source for CalDAV provider')
+    list_parser.add_argument('--storage', choices=['auto', 'keyring', 'env', 'file'], default=None,
+                            help='Credential source for CalDAV provider (default: auto)')
     list_parser.add_argument('--config', help='Path to YAML config with credentials')
     list_parser.add_argument('--debug-http', action='store_true',
                             help='Show detailed auth/network diagnostics')
@@ -1988,8 +1994,8 @@ Examples:
                            help=f'Days ahead to retrieve (default: 7, max: {MAX_DAYS_AHEAD})')
     get_parser.add_argument('--provider', choices=['caldav', 'macos-native'], default='caldav',
                            help='Calendar provider backend')
-    get_parser.add_argument('--storage', choices=['auto', 'keyring', 'env', 'file'], default='auto',
-                           help='Credential source for CalDAV provider')
+    get_parser.add_argument('--storage', choices=['auto', 'keyring', 'env', 'file'], default=None,
+                           help='Credential source for CalDAV provider (default: auto)')
     get_parser.add_argument('--config', help='Path to YAML config with credentials')
     get_parser.add_argument('--debug-http', action='store_true',
                            help='Show detailed auth/network diagnostics')
@@ -2008,8 +2014,8 @@ Examples:
                               help='Auto-confirm without prompts')
     create_parser.add_argument('--provider', choices=['caldav', 'macos-native'], default='caldav',
                               help='Calendar provider backend')
-    create_parser.add_argument('--storage', choices=['auto', 'keyring', 'env', 'file'], default='auto',
-                              help='Credential source for CalDAV provider')
+    create_parser.add_argument('--storage', choices=['auto', 'keyring', 'env', 'file'], default=None,
+                              help='Credential source for CalDAV provider (default: auto)')
     create_parser.add_argument('--config', help='Path to YAML config with credentials')
     create_parser.add_argument('--debug-http', action='store_true',
                               help='Show detailed auth/network diagnostics')
@@ -2030,8 +2036,8 @@ Examples:
                               help='Update mode: single instance, all instances, or this and future (default: single)')
     update_parser.add_argument('--provider', choices=['caldav', 'macos-native'], default='caldav',
                               help='Calendar provider backend')
-    update_parser.add_argument('--storage', choices=['auto', 'keyring', 'env', 'file'], default='auto',
-                              help='Credential source for CalDAV provider')
+    update_parser.add_argument('--storage', choices=['auto', 'keyring', 'env', 'file'], default=None,
+                              help='Credential source for CalDAV provider (default: auto)')
     update_parser.add_argument('--config', help='Path to YAML config with credentials')
     update_parser.add_argument('--debug-http', action='store_true',
                               help='Show detailed auth/network diagnostics')
@@ -2045,8 +2051,8 @@ Examples:
     delete_parser.add_argument('--uid', required=True, help='Event UID')
     delete_parser.add_argument('--provider', choices=['caldav', 'macos-native'], default='caldav',
                               help='Calendar provider backend')
-    delete_parser.add_argument('--storage', choices=['auto', 'keyring', 'env', 'file'], default='auto',
-                              help='Credential source for CalDAV provider')
+    delete_parser.add_argument('--storage', choices=['auto', 'keyring', 'env', 'file'], default=None,
+                              help='Credential source for CalDAV provider (default: auto)')
     delete_parser.add_argument('--config', help='Path to YAML config with credentials')
     delete_parser.add_argument('--debug-http', action='store_true',
                               help='Show detailed auth/network diagnostics')

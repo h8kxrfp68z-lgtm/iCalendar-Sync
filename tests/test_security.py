@@ -13,7 +13,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from icalendar_sync.calendar import CalendarManager, cmd_setup, validate_secret_value
+from icalendar_sync.calendar import CalendarManager, cmd_setup, validate_secret_value, build_manager
 
 
 @pytest.fixture(autouse=True)
@@ -123,6 +123,32 @@ def test_manager_file_credential_source_skips_keyring(tmp_path):
             assert manager.username == "cfg@icloud.com"
             assert manager.password == "xxxx-xxxx-xxxx-xxxx"
             mock_get_password.assert_not_called()
+
+
+def test_build_manager_uses_file_source_when_config_explicit():
+    args = argparse.Namespace(
+        provider="caldav",
+        storage=None,
+        config="/tmp/credentials.yaml",
+        user_agent=None,
+        debug_http=False,
+    )
+    with patch("icalendar_sync.calendar.CalendarManager") as mock_manager_cls:
+        build_manager(args)
+        assert mock_manager_cls.call_args.kwargs["credential_source"] == "file"
+
+
+def test_build_manager_respects_explicit_storage_over_config():
+    args = argparse.Namespace(
+        provider="caldav",
+        storage="env",
+        config="/tmp/credentials.yaml",
+        user_agent=None,
+        debug_http=False,
+    )
+    with patch("icalendar_sync.calendar.CalendarManager") as mock_manager_cls:
+        build_manager(args)
+        assert mock_manager_cls.call_args.kwargs["credential_source"] == "env"
 
 
 def test_update_validation_rejects_invalid_time_range():
