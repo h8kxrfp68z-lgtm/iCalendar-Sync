@@ -10,7 +10,8 @@ iCalendar Sync v2.3.0 implements enterprise-grade security measures:
   - macOS: Keychain
   - Windows: Credential Manager
   - Linux: Secret Service (GNOME Keyring, KWallet)
-- **Fail-Closed Setup**: If keyring is unavailable, setup does not persist secrets to plaintext files
+- **Explicit File Storage Option**: Optional YAML credential file with `0600` permissions for headless/GUI-restricted runtimes
+- **Fail-Closed Setup**: No implicit plaintext fallback files
 - **Log Filtering**: Automatic redaction of passwords and emails from logs
 
 ### Input Validation
@@ -101,6 +102,7 @@ If you discover a security vulnerability:
 
 1. **Update Dependencies**: `pip install --upgrade openclaw-icalendar-sync`
 2. **Secret Injection**: Provide `ICLOUD_USERNAME` and `ICLOUD_APP_PASSWORD` via secure OpenClaw env or container secret manager
+   - For GUI-restricted runtimes, use explicit file storage: `setup --storage file --config /secure/path.yaml`
 3. **Log Rotation**: Configure log rotation for /var/log if running as service
 4. **Network Security**: Use firewall rules if exposed
 

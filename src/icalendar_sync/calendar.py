@@ -16,6 +16,8 @@ import json
 import logging
 import re
 import threading
+import tempfile
+import shutil
 from datetime import datetime, timedelta, timezone, time as dt_time
 from typing import List, Dict, Optional
 from functools import wraps
@@ -29,6 +31,7 @@ try:
     from icalendar import Calendar as iCal, Event as iEvent, Alarm
     import requests.exceptions
     import keyring
+    import yaml
     from keyring.errors import KeyringError
 except ImportError as e:
     print(f"❌ Required packages not installed: {e}")
@@ -49,6 +52,9 @@ MIN_DAYS_AHEAD = 1
 RATE_LIMIT_CALLS = 10  # calls per window
 RATE_LIMIT_WINDOW = 60  # seconds
 INPUT_TIMEOUT = 30  # seconds for interactive input
+MAX_CONFIG_FILE_SIZE = 64 * 1024  # 64KB
+DEFAULT_CONFIG_PATH = Path.home() / ".openclaw" / "icalendar-sync.yaml"
+DEFAULT_USER_AGENT = f"openclaw-icalendar-sync/{__version__}"
 
 # Setup logging with sensitive data filtering
 class SensitiveDataFilter(logging.Filter):
@@ -166,6 +172,122 @@ def validate_secret_value(value: str) -> bool:
     return all(char not in value for char in ('\n', '\r', '\x00'))
 
 
+def is_truthy_env(value: str) -> bool:
+    """Parse common truthy env values."""
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def resolve_config_path(config_path: Optional[str] = None) -> Path:
+    """Resolve credential config path from arg/env/default."""
+    raw_path = config_path or os.getenv("ICALENDAR_SYNC_CONFIG")
+    if raw_path:
+        return Path(raw_path).expanduser()
+    return DEFAULT_CONFIG_PATH
+
+
+def safe_load_config_credentials(config_path: Optional[str] = None) -> Dict[str, str]:
+    """Load credentials from YAML config file."""
+    path = resolve_config_path(config_path)
+
+    try:
+        path = path.resolve()
+    except OSError as e:
+        logger.error(f"Invalid config path: {e}")
+        return {}
+
+    if not path.is_file():
+        return {}
+
+    try:
+        stat_result = path.stat()
+        if stat_result.st_size > MAX_CONFIG_FILE_SIZE:
+            logger.error(f"Config file too large: {stat_result.st_size} bytes")
+            return {}
+
+        file_mode = stat_result.st_mode & 0o777
+        if file_mode & 0o077:
+            logger.warning(
+                f"Config file permissions are too open ({oct(file_mode)}). Expected 0o600."
+            )
+
+        with open(path, "r", encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+
+        if not isinstance(data, dict):
+            logger.error("Config file must contain a YAML object")
+            return {}
+
+        username = data.get("username") or data.get("icloud_username")
+        password = data.get("app_password") or data.get("icloud_app_password") or data.get("password")
+
+        if isinstance(username, str):
+            username = username.strip()
+        else:
+            username = ""
+
+        if isinstance(password, str):
+            password = password.strip()
+        else:
+            password = ""
+
+        if password and not validate_secret_value(password):
+            logger.error("Config password contains invalid control characters")
+            return {}
+
+        result = {}
+        if username:
+            result["username"] = username
+        if password:
+            result["password"] = password
+        return result
+
+    except (OSError, yaml.YAMLError) as e:
+        logger.error(f"Failed to read config file: {e}")
+        return {}
+
+
+def save_config_credentials(config_path: Optional[str], username: str, password: str) -> Optional[Path]:
+    """Persist credentials to a YAML config file with strict permissions."""
+    path = resolve_config_path(config_path).expanduser()
+    tmp_path: Optional[Path] = None
+
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            os.chmod(path.parent, 0o700)
+        except OSError:
+            # Best effort: some systems may deny chmod on existing directories.
+            pass
+
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            delete=False,
+            dir=path.parent,
+        ) as tmp:
+            tmp_path = Path(tmp.name)
+            yaml.safe_dump(
+                {"username": username, "app_password": password},
+                tmp,
+                sort_keys=False,
+                default_flow_style=False,
+            )
+
+        os.chmod(tmp_path, 0o600)
+        shutil.move(str(tmp_path), str(path))
+        os.chmod(path, 0o600)
+        return path
+
+    except (OSError, yaml.YAMLError) as e:
+        logger.error(f"Failed to write config file: {e}")
+        if tmp_path and tmp_path.exists():
+            try:
+                tmp_path.unlink()
+            except OSError:
+                pass
+        return None
+
+
 def sanitize_text(text: str, max_length: int) -> str:
     """Sanitize and truncate text fields"""
     if not isinstance(text, str):
@@ -233,8 +355,17 @@ def timed_input(prompt: str, timeout: int = INPUT_TIMEOUT) -> Optional[str]:
 class CalendarManager:
     """Manage iCloud Calendar via CalDAV"""
     
-    def __init__(self):
-        self.username = os.getenv('ICLOUD_USERNAME')
+    def __init__(
+        self,
+        config_path: Optional[str] = None,
+        user_agent: Optional[str] = None,
+        debug_http: bool = False
+    ):
+        self.config_path = resolve_config_path(config_path)
+        self.debug_http = debug_http or is_truthy_env(os.getenv("ICALENDAR_SYNC_DEBUG_HTTP", "0"))
+        self.user_agent = (user_agent or os.getenv("ICALENDAR_SYNC_USER_AGENT") or DEFAULT_USER_AGENT).strip()
+        self._config_credentials = safe_load_config_credentials(str(self.config_path))
+        self.username = os.getenv('ICLOUD_USERNAME') or self._config_credentials.get("username")
         self.password = self._load_password()
         self.client: Optional[DAVClient] = None
         self._connected: bool = False
@@ -243,23 +374,58 @@ class CalendarManager:
         self._connection_lock = threading.Lock()
         self._rate_limiter = RateLimiter(RATE_LIMIT_CALLS, RATE_LIMIT_WINDOW)
     
+    def _format_exception_details(self, exc: Exception) -> str:
+        """Build a compact diagnostic string for network/auth failures."""
+        details = [f"type={type(exc).__name__}"]
+
+        for attr in ("status", "reason", "url"):
+            value = getattr(exc, attr, None)
+            if value:
+                details.append(f"{attr}={value}")
+
+        response = getattr(exc, "response", None)
+        if response is not None:
+            status_code = getattr(response, "status_code", None)
+            if status_code:
+                details.append(f"http_status={status_code}")
+            if self.debug_http:
+                response_text = getattr(response, "text", "")
+                if response_text:
+                    details.append(f"response={sanitize_text(response_text, 300)}")
+
+        if self.debug_http and getattr(exc, "args", None):
+            details.append(f"args={sanitize_text(str(exc.args), 300)}")
+
+        return ", ".join(details)
+
     def _load_password(self) -> Optional[str]:
-        """Load password from keyring or env"""
+        """Load password from keyring, env, or secure config file."""
         username = self.username
-        if not username:
-            return os.getenv('ICLOUD_APP_PASSWORD')
-        
-        try:
-            # Try keyring first
-            password = keyring.get_password('openclaw-icalendar', username)
-            if password:
-                logger.debug("Loaded password from keyring")
-                return password
-        except KeyringError:
-            pass
-        
-        # Fallback to env
-        return os.getenv('ICLOUD_APP_PASSWORD')
+        if username:
+            try:
+                # Try keyring first
+                password = keyring.get_password('openclaw-icalendar', username)
+                if password:
+                    logger.debug("Loaded password from keyring")
+                    return password
+            except KeyringError:
+                pass
+
+        env_password = os.getenv('ICLOUD_APP_PASSWORD')
+        if env_password:
+            if validate_secret_value(env_password):
+                return env_password
+            logger.error("Environment password contains invalid control characters")
+
+        config_password = self._config_credentials.get("password")
+        config_username = self._config_credentials.get("username")
+        if config_password and validate_secret_value(config_password):
+            if not username or not config_username or config_username == username:
+                if not self.username and config_username:
+                    self.username = config_username
+                return config_password
+
+        return None
     
     def _is_connection_valid(self) -> bool:
         """Check if cached connection is still valid (thread-safe)"""
@@ -287,12 +453,26 @@ class CalendarManager:
         
         try:
             with self._connection_lock:
-                self.client = DAVClient(
+                if self.debug_http:
+                    logger.setLevel(logging.DEBUG)
+                    logger.debug("CalDAV debug enabled")
+
+                client_kwargs = dict(
                     url="https://caldav.icloud.com",
                     username=self.username,
                     password=self.password,
                     ssl_verify_cert=True  # Enforce SSL verification
                 )
+                if self.user_agent:
+                    client_kwargs["headers"] = {"User-Agent": self.user_agent}
+
+                try:
+                    self.client = DAVClient(**client_kwargs)
+                except TypeError:
+                    # Older caldav versions may not support custom headers.
+                    client_kwargs.pop("headers", None)
+                    self.client = DAVClient(**client_kwargs)
+
                 principal = self.client.principal()
                 principal.calendars()
                 
@@ -301,24 +481,39 @@ class CalendarManager:
                 logger.info("Successfully connected to iCloud CalDAV")
                 return True
             
-        except AuthorizationError:
-            print("❌ Authentication failed: Invalid credentials")
-            logger.error("Authentication failed")
+        except AuthorizationError as e:
+            print("❌ Authentication failed: invalid credentials or blocked iCloud request")
+            if self.debug_http:
+                print(f"   Debug: {self._format_exception_details(e)}")
+            logger.error(f"Authentication failed ({self._format_exception_details(e)})")
             self._connected = False
             return False
-        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+        except requests.exceptions.SSLError as e:
+            print("❌ TLS/SSL handshake error")
+            if self.debug_http:
+                print(f"   Debug: {self._format_exception_details(e)}")
+            logger.error(f"TLS handshake error ({self._format_exception_details(e)})")
+            self._connected = False
+            raise
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
             print("❌ Network error")
-            logger.error("Network error")
+            if self.debug_http:
+                print(f"   Debug: {self._format_exception_details(e)}")
+            logger.error(f"Network error ({self._format_exception_details(e)})")
             self._connected = False
             raise  # Re-raise for retry decorator
-        except DAVError:
+        except DAVError as e:
             print("❌ CalDAV error")
-            logger.error("CalDAV error")
+            if self.debug_http:
+                print(f"   Debug: {self._format_exception_details(e)}")
+            logger.error(f"CalDAV error ({self._format_exception_details(e)})")
             self._connected = False
             raise  # Re-raise for retry decorator
         except Exception as e:
             print(f"❌ Unexpected error: {type(e).__name__}")
-            logger.error(f"Unexpected connection error: {type(e).__name__}")
+            if self.debug_http:
+                print(f"   Debug: {self._format_exception_details(e)}")
+            logger.error(f"Unexpected connection error: {self._format_exception_details(e)}")
             self._connected = False
             return False
     
@@ -1020,6 +1215,8 @@ def cmd_setup(args):
 
     non_interactive = getattr(args, 'non_interactive', False)
     username_arg = getattr(args, 'username', None)
+    storage = getattr(args, "storage", "keyring")
+    config_path_arg = getattr(args, "config", None)
 
     if non_interactive:
         email = (username_arg or os.getenv('ICLOUD_USERNAME') or "").strip()
@@ -1083,24 +1280,43 @@ def cmd_setup(args):
         logger.error("Setup: Invalid email format")
         print("❌ Invalid email format")
         return
-    
-    # Try to store in keyring first
-    try:
-        keyring.set_password('openclaw-icalendar', email, password)
-        print("\n✅ Credentials saved securely to system keyring")
-        logger.info("Credentials stored in keyring")
-    except KeyringError:
-        logger.error("Setup: Could not access system keyring")
-        print("❌ Could not access system keyring. Credentials were not persisted.")
-        print("   Configure a working keyring backend or pass ICLOUD_* env vars at runtime.")
-        return
+
+    if storage == "file":
+        saved_path = save_config_credentials(config_path_arg, email, password)
+        if saved_path is None:
+            print("❌ Failed to save credentials to config file")
+            return
+        print(f"\n✅ Credentials saved to config file: {saved_path}")
+        print("   File permissions set to 0600")
+        logger.info(f"Credentials stored in config file: {saved_path}")
+    else:
+        # Try to store in keyring first
+        try:
+            keyring.set_password('openclaw-icalendar', email, password)
+            print("\n✅ Credentials saved securely to system keyring")
+            logger.info("Credentials stored in keyring")
+        except KeyringError:
+            logger.error("Setup: Could not access system keyring")
+            suggested_path = resolve_config_path(config_path_arg)
+            print("❌ Could not access system keyring. Credentials were not persisted.")
+            print(f"   Use file storage instead: icalendar-sync setup --storage file --config {suggested_path}")
+            return
     
     print("🚀 You can now use iCalendar Sync!\n")
 
 
+def build_manager(args) -> CalendarManager:
+    """Create CalendarManager from common CLI args."""
+    return CalendarManager(
+        config_path=getattr(args, "config", None),
+        user_agent=getattr(args, "user_agent", None),
+        debug_http=getattr(args, "debug_http", False),
+    )
+
+
 def cmd_list(args):
     """List calendars"""
-    manager = CalendarManager()
+    manager = build_manager(args)
     manager.list_calendars()
 
 
@@ -1110,7 +1326,7 @@ def cmd_get_events(args):
         print("❌ Calendar name required")
         return
     
-    manager = CalendarManager()
+    manager = build_manager(args)
     manager.get_events(args.calendar, args.days_ahead)
 
 
@@ -1141,7 +1357,7 @@ def cmd_create_event(args):
         if 'dtend' in event_data and isinstance(event_data['dtend'], str):
             event_data['dtend'] = datetime.fromisoformat(event_data['dtend'])
         
-        manager = CalendarManager()
+        manager = build_manager(args)
         check_conflicts = not args.no_conflict_check if hasattr(args, 'no_conflict_check') else True
         auto_confirm = getattr(args, 'yes', False)
         manager.create_event(args.calendar, event_data, check_conflicts=check_conflicts, auto_confirm=auto_confirm)
@@ -1160,7 +1376,7 @@ def cmd_delete_event(args):
         print("❌ Calendar and event UID required")
         return
 
-    manager = CalendarManager()
+    manager = build_manager(args)
     manager.delete_event(args.calendar, args.uid)
 
 
@@ -1195,7 +1411,7 @@ def cmd_update_event(args):
         mode = getattr(args, 'mode', 'single')
         recurrence_id = getattr(args, 'recurrence_id', None)
 
-        manager = CalendarManager()
+        manager = build_manager(args)
         manager.update_event(
             args.calendar,
             args.uid,
@@ -1236,10 +1452,23 @@ Examples:
     setup_parser.add_argument('--username', help='Apple ID email (optional in non-interactive mode)')
     setup_parser.add_argument('--non-interactive', action='store_true',
                              help='Non-interactive mode (reads ICLOUD_USERNAME and ICLOUD_APP_PASSWORD)')
+    setup_parser.add_argument('--storage', choices=['keyring', 'file'], default='keyring',
+                             help='Credential storage backend (default: keyring)')
+    setup_parser.add_argument('--config',
+                             help='Path to YAML config with credentials (used for --storage file and runtime lookup)')
+    setup_parser.add_argument('--debug-http', action='store_true',
+                             help='Show detailed auth/network diagnostics')
+    setup_parser.add_argument('--user-agent',
+                             help=f'Override CalDAV User-Agent (default: {DEFAULT_USER_AGENT})')
     setup_parser.set_defaults(func=cmd_setup)
     
     # List
     list_parser = subparsers.add_parser('list', help='List calendars')
+    list_parser.add_argument('--config', help='Path to YAML config with credentials')
+    list_parser.add_argument('--debug-http', action='store_true',
+                            help='Show detailed auth/network diagnostics')
+    list_parser.add_argument('--user-agent',
+                            help=f'Override CalDAV User-Agent (default: {DEFAULT_USER_AGENT})')
     list_parser.set_defaults(func=cmd_list)
     
     # Get events
@@ -1247,6 +1476,11 @@ Examples:
     get_parser.add_argument('--calendar', help='Calendar name')
     get_parser.add_argument('--days', type=int, default=7, dest='days_ahead',
                            help=f'Days ahead to retrieve (default: 7, max: {MAX_DAYS_AHEAD})')
+    get_parser.add_argument('--config', help='Path to YAML config with credentials')
+    get_parser.add_argument('--debug-http', action='store_true',
+                           help='Show detailed auth/network diagnostics')
+    get_parser.add_argument('--user-agent',
+                           help=f'Override CalDAV User-Agent (default: {DEFAULT_USER_AGENT})')
     get_parser.set_defaults(func=cmd_get_events)
     
     # Create event
@@ -1258,6 +1492,11 @@ Examples:
                               help='Skip conflict detection')
     create_parser.add_argument('-y', '--yes', action='store_true',
                               help='Auto-confirm without prompts')
+    create_parser.add_argument('--config', help='Path to YAML config with credentials')
+    create_parser.add_argument('--debug-http', action='store_true',
+                              help='Show detailed auth/network diagnostics')
+    create_parser.add_argument('--user-agent',
+                              help=f'Override CalDAV User-Agent (default: {DEFAULT_USER_AGENT})')
     create_parser.set_defaults(func=cmd_create_event)
     
     # Update event
@@ -1271,12 +1510,22 @@ Examples:
     update_parser.add_argument('--mode', default='single',
                               choices=['single', 'all', 'future'],
                               help='Update mode: single instance, all instances, or this and future (default: single)')
+    update_parser.add_argument('--config', help='Path to YAML config with credentials')
+    update_parser.add_argument('--debug-http', action='store_true',
+                              help='Show detailed auth/network diagnostics')
+    update_parser.add_argument('--user-agent',
+                              help=f'Override CalDAV User-Agent (default: {DEFAULT_USER_AGENT})')
     update_parser.set_defaults(func=cmd_update_event)
 
     # Delete event
     delete_parser = subparsers.add_parser('delete', help='Delete calendar event')
     delete_parser.add_argument('--calendar', required=True, help='Calendar name')
     delete_parser.add_argument('--uid', required=True, help='Event UID')
+    delete_parser.add_argument('--config', help='Path to YAML config with credentials')
+    delete_parser.add_argument('--debug-http', action='store_true',
+                              help='Show detailed auth/network diagnostics')
+    delete_parser.add_argument('--user-agent',
+                              help=f'Override CalDAV User-Agent (default: {DEFAULT_USER_AGENT})')
     delete_parser.set_defaults(func=cmd_delete_event)
 
     args = parser.parse_args()

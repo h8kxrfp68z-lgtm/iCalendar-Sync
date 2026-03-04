@@ -19,6 +19,10 @@ The skill stores credentials securely in your operating system's keyring:
 - **Windows**: Credential Manager
 - **Linux**: Secret Service API
 
+If your runtime cannot access GUI keyring prompts (for example background agents on macOS), use explicit file storage with strict permissions:
+- `python -m icalendar_sync setup --storage file --config ~/.openclaw/icalendar-sync.yaml --non-interactive`
+- The file is written as YAML with mode `0600`.
+
 ### 3. For Headless/Automated Environments
 
 For Docker, CI/CD, or headless servers where interactive input is not possible:
@@ -47,8 +51,13 @@ kubectl create secret generic icloud-credentials \
 Credentials are read in this order:
 1. OS keyring (if available and configured)
 2. Environment variables (`ICLOUD_USERNAME`, `ICLOUD_APP_PASSWORD`)
+3. YAML config file (`~/.openclaw/icalendar-sync.yaml` or `--config`)
 
 `setup` no longer writes plaintext fallback files (such as `~/.openclaw/.env`) when keyring is unavailable.
+
+For iCloud auth/network troubleshooting, add:
+- `--debug-http` for detailed diagnostics
+- `--user-agent "your-agent-name/1.0"` to override User-Agent
 
 ## Installation
 

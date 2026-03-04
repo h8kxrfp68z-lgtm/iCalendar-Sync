@@ -155,6 +155,9 @@ export ICLOUD_USERNAME="user@icloud.com"
 export ICLOUD_APP_PASSWORD="xxxx-xxxx-xxxx-xxxx"
 icalendar-sync setup --non-interactive
 
+# If keyring is unavailable in background runtime (for example Alfred/macOS):
+icalendar-sync setup --non-interactive --storage file --config ~/.openclaw/icalendar-sync.yaml
+
 Credentials are securely stored in your OS keyring:
 - **macOS**: Keychain
 - **Windows**: Credential Manager
@@ -333,6 +336,9 @@ export ICLOUD_APP_PASSWORD="xxxx-xxxx-xxxx-xxxx"
 # Optional
 export DEFAULT_CALENDAR="Personal"
 export LOG_LEVEL="WARNING"  # DEBUG, INFO, WARNING, ERROR
+export ICALENDAR_SYNC_CONFIG="~/.openclaw/icalendar-sync.yaml"
+export ICALENDAR_SYNC_USER_AGENT="openclaw-icalendar-sync/2.3.0"
+export ICALENDAR_SYNC_DEBUG_HTTP="0"
 Security Limits
 python
 # Configurable in calendar.py

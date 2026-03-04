@@ -9,10 +9,17 @@ import sys
 from datetime import datetime, timezone
 from unittest.mock import patch
 from keyring.errors import KeyringError
+import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from icalendar_sync.calendar import CalendarManager, cmd_setup, validate_secret_value
+
+
+@pytest.fixture(autouse=True)
+def isolate_config_path(tmp_path, monkeypatch):
+    """Prevent tests from using user-level config credentials."""
+    monkeypatch.setenv("ICALENDAR_SYNC_CONFIG", str(tmp_path / "test-icalendar-sync.yaml"))
 
 
 def test_validate_secret_value_rejects_control_chars():
@@ -23,7 +30,7 @@ def test_validate_secret_value_rejects_control_chars():
 
 
 def test_setup_non_interactive_requires_env_vars():
-    args = argparse.Namespace(username=None, non_interactive=True)
+    args = argparse.Namespace(username=None, non_interactive=True, storage="keyring", config=None)
 
     with patch.dict(os.environ, {}, clear=True):
         with patch("icalendar_sync.calendar.keyring.set_password") as mock_set_password:
@@ -32,7 +39,7 @@ def test_setup_non_interactive_requires_env_vars():
 
 
 def test_setup_non_interactive_saves_to_keyring():
-    args = argparse.Namespace(username=None, non_interactive=True)
+    args = argparse.Namespace(username=None, non_interactive=True, storage="keyring", config=None)
 
     with patch.dict(
         os.environ,
@@ -49,7 +56,7 @@ def test_setup_non_interactive_saves_to_keyring():
 
 
 def test_setup_keyring_error_does_not_write_plaintext_file():
-    args = argparse.Namespace(username=None, non_interactive=True)
+    args = argparse.Namespace(username=None, non_interactive=True, storage="keyring", config=None)
 
     with patch.dict(
         os.environ,
@@ -63,6 +70,42 @@ def test_setup_keyring_error_does_not_write_plaintext_file():
             with patch("builtins.open") as mock_open:
                 cmd_setup(args)
                 mock_open.assert_not_called()
+
+
+def test_setup_non_interactive_saves_to_config_file(tmp_path):
+    config_path = tmp_path / "credentials.yaml"
+    args = argparse.Namespace(
+        username=None,
+        non_interactive=True,
+        storage="file",
+        config=str(config_path),
+    )
+
+    with patch.dict(
+        os.environ,
+        {"ICLOUD_USERNAME": "test@icloud.com", "ICLOUD_APP_PASSWORD": "xxxx-xxxx-xxxx-xxxx"},
+        clear=True,
+    ):
+        cmd_setup(args)
+
+    assert config_path.exists()
+    text = config_path.read_text(encoding="utf-8")
+    assert "test@icloud.com" in text
+    assert "app_password" in text
+
+
+def test_manager_reads_credentials_from_config_file(tmp_path):
+    config_path = tmp_path / "credentials.yaml"
+    config_path.write_text(
+        "username: cfg@icloud.com\napp_password: xxxx-xxxx-xxxx-xxxx\n",
+        encoding="utf-8",
+    )
+
+    with patch.dict(os.environ, {}, clear=True):
+        with patch("icalendar_sync.calendar.keyring.get_password", return_value=None):
+            manager = CalendarManager(config_path=str(config_path))
+            assert manager.username == "cfg@icloud.com"
+            assert manager.password == "xxxx-xxxx-xxxx-xxxx"
 
 
 def test_update_validation_rejects_invalid_time_range():

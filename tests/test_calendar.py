@@ -14,6 +14,12 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 from icalendar_sync.calendar import CalendarManager
 
 
+@pytest.fixture(autouse=True)
+def isolate_config_path(tmp_path, monkeypatch):
+    """Prevent tests from reading local user credential config."""
+    monkeypatch.setenv("ICALENDAR_SYNC_CONFIG", str(tmp_path / "test-icalendar-sync.yaml"))
+
+
 class TestCalendarManager:
     """Test CalendarManager"""
     
@@ -141,8 +147,9 @@ class TestSetupCommand:
     
     @patch('icalendar_sync.calendar.input')
     @patch('icalendar_sync.calendar.getpass.getpass')
+    @patch('icalendar_sync.calendar.keyring.set_password')
     @patch('builtins.open', create=True)
-    def test_cmd_setup(self, mock_open, mock_getpass, mock_input):
+    def test_cmd_setup(self, mock_open, mock_set_password, mock_getpass, mock_input):
         """Test setup command"""
         mock_input.return_value = 'test@icloud.com'
         mock_getpass.return_value = 'xxxx-xxxx-xxxx-xxxx'

@@ -100,12 +100,12 @@ dependencies:
 environment:
   - name: ICLOUD_USERNAME
     description: "Apple ID email address (e.g., name@icloud.com)"
-    required: true
+    required: false
     placeholder: "user@icloud.com"
   
   - name: ICLOUD_APP_PASSWORD
     description: "App-Specific Password from appleid.apple.com (read from secure OpenClaw env, can be persisted to system keyring by setup)"
-    required: true
+    required: false
     secure: true
     placeholder: "xxxx-xxxx-xxxx-xxxx"
   
@@ -119,12 +119,27 @@ environment:
     required: false
     default: "WARNING"
 
+  - name: ICALENDAR_SYNC_CONFIG
+    description: "Optional path to YAML credential file (username/app_password)"
+    required: false
+    default: "~/.openclaw/icalendar-sync.yaml"
+
+  - name: ICALENDAR_SYNC_USER_AGENT
+    description: "Optional custom User-Agent for iCloud CalDAV requests"
+    required: false
+    default: "openclaw-icalendar-sync/2.3.0"
+
+  - name: ICALENDAR_SYNC_DEBUG_HTTP
+    description: "Enable detailed auth/network diagnostics (1/true/yes/on)"
+    required: false
+    default: "0"
+
 
 # =============================================================================
 # SECURITY
 # =============================================================================
 security:
-  credential_storage: "System keyring (macOS Keychain, Windows Credential Manager, Linux Secret Service)"
+  credential_storage: "System keyring or explicit YAML config file (0600) for headless/GUI-restricted runtimes"
   input_validation: true
   rate_limiting: "10 calls per 60 seconds"
   ssl_verification: true
@@ -170,5 +185,5 @@ commands:
   
   - name: setup
     description: Configure iCloud credentials interactively or via CLI
-    usage: "icalendar-sync setup [--username EMAIL] [--non-interactive]"
+    usage: "icalendar-sync setup [--username EMAIL] [--non-interactive] [--storage keyring|file] [--config /path/to/config.yaml]"
     permissions: [admin]
