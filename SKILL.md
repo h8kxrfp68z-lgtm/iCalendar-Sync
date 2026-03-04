@@ -46,8 +46,9 @@ kubectl create secret generic icloud-credentials \
 
 Credentials are read in this order:
 1. OS keyring (if available and configured)
-2. Environment variables (if keyring unavailable)
-3. Interactive prompt (if neither available)
+2. Environment variables (`ICLOUD_USERNAME`, `ICLOUD_APP_PASSWORD`)
+
+`setup` no longer writes plaintext fallback files (such as `~/.openclaw/.env`) when keyring is unavailable.
 
 ## Installation
 

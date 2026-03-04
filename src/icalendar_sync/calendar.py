@@ -16,10 +16,8 @@ import json
 import logging
 import re
 import threading
-import tempfile
-import shutil
 from datetime import datetime, timedelta, timezone, time as dt_time
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional
 from functools import wraps
 import time
 from pathlib import Path
@@ -28,7 +26,7 @@ try:
     import caldav
     from caldav.davclient import DAVClient
     from caldav.lib.error import AuthorizationError, NotFoundError, DAVError
-    from icalendar import Calendar as iCal, Event as iEvent, Alarm, vRecur
+    from icalendar import Calendar as iCal, Event as iEvent, Alarm
     import requests.exceptions
     import keyring
     from keyring.errors import KeyringError
@@ -73,7 +71,7 @@ class SensitiveDataFilter(logging.Filter):
         return text
 
 logging.basicConfig(
-    level=os.getenv('LOG_LEVEL', 'INFO'),
+    level=os.getenv('LOG_LEVEL', 'WARNING'),
     format='%(asctime)s | %(levelname)s | %(message)s'
 )
 logger = logging.getLogger(__name__)
@@ -159,6 +157,13 @@ def validate_email(email: str) -> bool:
     """Validate email address"""
     pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
     return bool(re.match(pattern, email))
+
+
+def validate_secret_value(value: str) -> bool:
+    """Reject dangerous control characters in secrets."""
+    if not value or not isinstance(value, str):
+        return False
+    return all(char not in value for char in ('\n', '\r', '\x00'))
 
 
 def sanitize_text(text: str, max_length: int) -> str:
@@ -804,6 +809,8 @@ class CalendarManager:
         """Update a simple (non-recurring) event or all instances of recurring event"""
         # Apply updates to event
         self._apply_updates_to_event(event, update_data)
+        if not self._validate_event_time_range(event):
+            return False
 
         # Save back to server
         event_obj.data = cal.to_ical()
@@ -817,6 +824,8 @@ class CalendarManager:
         """Update the master recurrence rule (affects all instances)"""
         # Apply updates to master event
         self._apply_updates_to_event(event, update_data)
+        if not self._validate_event_time_range(event):
+            return False
 
         # Save back to server
         event_obj.data = cal.to_ical()
@@ -862,6 +871,9 @@ class CalendarManager:
                 master_end = master_event['DTEND'].dt
                 duration = master_end - master_start
                 exception_event.add('dtend', recurrence_dt + duration)
+
+            if not self._validate_event_time_range(exception_event):
+                return False
 
             # Create new calendar with exception
             exception_cal = iCal()
@@ -929,6 +941,8 @@ class CalendarManager:
 
             # Apply updates
             self._apply_updates_to_event(new_event, update_data)
+            if not self._validate_event_time_range(new_event):
+                return False
 
             new_cal.add_component(new_event)
             calendar.save_event(new_cal.to_ical().decode('utf-8'))
@@ -979,29 +993,62 @@ class CalendarManager:
         if 'priority' in update_data and isinstance(update_data['priority'], int):
             event['PRIORITY'] = max(0, min(9, update_data['priority']))
 
+    def _validate_event_time_range(self, event) -> bool:
+        """Validate DTSTART/DTEND range after updates."""
+        if 'DTSTART' not in event or 'DTEND' not in event:
+            return True
+
+        start_value = event['DTSTART']
+        end_value = event['DTEND']
+        start_dt = getattr(start_value, 'dt', start_value)
+        end_dt = getattr(end_value, 'dt', end_value)
+
+        if not isinstance(start_dt, datetime) or not isinstance(end_dt, datetime):
+            return True
+
+        if end_dt <= start_dt:
+            print("❌ Event end time must be after start time")
+            logger.error("Invalid update: dtend must be after dtstart")
+            return False
+
+        return True
+
 
 def cmd_setup(args):
     """Interactive or headless setup of credentials"""
     print("\n🔧 iCalendar Sync Setup\n")
 
-    # Headless mode: use provided arguments
-    if hasattr(args, 'username') and args.username and hasattr(args, 'password') and args.password:
-        email = args.username.strip()
-        password = args.password.strip()
-        if not email or not password:
-            logger.error("Setup: CLI argument parsing error for username/password (invalid choice error)")
-            print("❌ CLI argument parsing error for username/password (invalid choice error)")
+    non_interactive = getattr(args, 'non_interactive', False)
+    username_arg = getattr(args, 'username', None)
+
+    if non_interactive:
+        email = (username_arg or os.getenv('ICLOUD_USERNAME') or "").strip()
+        password = (os.getenv('ICLOUD_APP_PASSWORD') or "").strip()
+
+        if not email:
+            print("❌ ICLOUD_USERNAME is required in non-interactive mode")
+            logger.error("Setup: Missing ICLOUD_USERNAME in non-interactive mode")
             return
-        if not args.non_interactive:
-            print(f"📧 Using provided email: {email}")
-            print("🔑 Using provided password")
+        if not password:
+            print("❌ ICLOUD_APP_PASSWORD is required in non-interactive mode")
+            logger.error("Setup: Missing ICLOUD_APP_PASSWORD in non-interactive mode")
+            return
+        if not validate_secret_value(password):
+            print("❌ Invalid ICLOUD_APP_PASSWORD value")
+            logger.error("Setup: Invalid ICLOUD_APP_PASSWORD value")
+            return
     else:
         # Interactive mode
         print("To use iCalendar Sync, you need to configure your iCloud credentials.")
         print("⚠️  Use an App-Specific Password, NOT your regular Apple ID password.\n")
         print("Get it from: https://appleid.apple.com -> Sign-In & Security -> App-Specific Passwords\n")
 
-        email = input("📧 iCloud Email: ").strip()
+        if username_arg:
+            email = username_arg.strip()
+            print(f"📧 Using provided email: {email}")
+        else:
+            email = input("📧 iCloud Email: ").strip()
+
         if not email:
             print("❌ Email cannot be empty")
             return
@@ -1017,6 +1064,10 @@ def cmd_setup(args):
         password = getpass.getpass("🔑 App-Specific Password (xxxx-xxxx-xxxx-xxxx): ").strip()
         if not password:
             print("❌ Password cannot be empty")
+            return
+        if not validate_secret_value(password):
+            print("❌ Invalid password value")
+            logger.error("Setup: Invalid password value")
             return
 
         # Validate format
@@ -1038,43 +1089,11 @@ def cmd_setup(args):
         keyring.set_password('openclaw-icalendar', email, password)
         print("\n✅ Credentials saved securely to system keyring")
         logger.info("Credentials stored in keyring")
-    except KeyringError as e:
-        logger.error("Setup: Could not access system keyring, falling back to .env")
-        print("⚠️  Could not access system keyring, falling back to .env file")
-        
-        # Fallback to .env file with atomic write
-        try:
-            env_path = Path.home() / ".openclaw" / ".env"
-            env_path.parent.mkdir(parents=True, exist_ok=True)
-            
-            # Read existing lines
-            lines = []
-            if env_path.exists():
-                with open(env_path, 'r') as f:
-                    lines = [l for l in f.readlines() 
-                            if not l.startswith(('ICLOUD_USERNAME', 'ICLOUD_APP_PASSWORD'))]
-            
-            # Escape special characters in email/password for shell safety
-            email_escaped = email.replace('"', '\\"')
-            password_escaped = password.replace('"', '\\"')
-            
-            # Write atomically using temp file with proper quoting
-            lines.append(f'ICLOUD_USERNAME="{email_escaped}"\n')
-            lines.append(f'ICLOUD_APP_PASSWORD="{password_escaped}"\n')
-            
-            with tempfile.NamedTemporaryFile('w', delete=False, dir=env_path.parent) as tmp:
-                tmp.writelines(lines)
-                tmp_path = tmp.name
-            
-            shutil.move(tmp_path, str(env_path))
-            os.chmod(env_path, 0o600)
-            
-            logger.info("Setup: Credentials saved to .env file")
-            print(f"✅ Configuration saved securely to {env_path}")
-        except (OSError, IOError) as file_error:
-            logger.error(f"Setup: Failed to write .env file: {str(file_error)}")
-            print(f"❌ Failed to save configuration: {str(file_error)}")
-            return
+    except KeyringError:
+        logger.error("Setup: Could not access system keyring")
+        print("❌ Could not access system keyring. Credentials were not persisted.")
+        print("   Configure a working keyring backend or pass ICLOUD_* env vars at runtime.")
+        return
     
     print("🚀 You can now use iCalendar Sync!\n")
 
@@ -1214,10 +1233,9 @@ Examples:
     
     # Setup
     setup_parser = subparsers.add_parser('setup', help='Configure iCloud credentials')
-    setup_parser.add_argument('--username', help='Apple ID email (for headless setup)')
-    setup_parser.add_argument('--password', help='App-specific password (for headless setup)')
+    setup_parser.add_argument('--username', help='Apple ID email (optional in non-interactive mode)')
     setup_parser.add_argument('--non-interactive', action='store_true',
-                             help='Non-interactive mode (use with --username and --password)')
+                             help='Non-interactive mode (reads ICLOUD_USERNAME and ICLOUD_APP_PASSWORD)')
     setup_parser.set_defaults(func=cmd_setup)
     
     # List

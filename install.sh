@@ -6,7 +6,7 @@ set -e
 
 SKILL_NAME="icalendar-sync"
 SKILL_DIR="$HOME/.openclaw/skills/$SKILL_NAME"
-MIN_PYTHON_VERSION="3.8"
+MIN_PYTHON_VERSION="3.9"
 
 echo "🚀 Installing iCalendar Sync for OpenClaw..."
 echo ""
@@ -21,7 +21,7 @@ python_version=$(python3 -c 'import sys; print(".".join(map(str, sys.version_inf
 echo "✓ Python $python_version detected"
 
 # Validate Python version
-if python3 -c "import sys; exit(0 if sys.version_info >= (3, 8) else 1)"; then
+if python3 -c "import sys; exit(0 if sys.version_info >= (3, 9) else 1)"; then
     echo "✓ Python version meets requirements (>= $MIN_PYTHON_VERSION)"
 else
     echo "❌ Error: Python $MIN_PYTHON_VERSION or higher is required"
@@ -35,11 +35,14 @@ echo "✓ Created skill directory: $SKILL_DIR"
 
 # Copy files
 echo "📦 Copying skill files..."
-cp -r src/ requirements.txt skill.yaml setup.py README.md LICENSE "$SKILL_DIR/"
+cp -r src/ requirements.txt skill.yaml setup.py README.md "$SKILL_DIR/"
+if [ -f LICENSE ]; then
+    cp LICENSE "$SKILL_DIR/"
+fi
 
 # Install dependencies with error checking
 echo "📥 Installing dependencies..."
-if pip install -r "$SKILL_DIR/requirements.txt"; then
+if python3 -m pip install -r "$SKILL_DIR/requirements.txt"; then
     echo "✓ Dependencies installed successfully"
 else
     echo "❌ Error: Failed to install dependencies"
@@ -63,30 +66,18 @@ if [ -f "$HOME/.local/bin/icalendar-sync" ]; then
     fi
 fi
 
-# Create CLI command (SECURITY: No more 'source .env' - using python-dotenv)
+# Create CLI command
 echo "🔗 Creating CLI command..."
 cat > "$HOME/.local/bin/icalendar-sync" << 'EOF'
 #!/usr/bin/env python3
 # Secure wrapper for icalendar-sync
-# Uses python-dotenv instead of bash source for security
 
 import sys
-import os
 from pathlib import Path
 
 # Add skill to Python path
 skill_dir = Path.home() / '.openclaw' / 'skills' / 'icalendar-sync' / 'src'
 sys.path.insert(0, str(skill_dir))
-
-# Load environment safely using python-dotenv
-try:
-    from dotenv import load_dotenv
-    env_file = Path.home() / '.openclaw' / '.env'
-    if env_file.exists():
-        load_dotenv(env_file)
-except ImportError:
-    # python-dotenv not available, skip env loading
-    pass
 
 # Run the actual script with error handling
 if __name__ == '__main__':

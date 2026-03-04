@@ -332,7 +332,7 @@ export ICLOUD_APP_PASSWORD="xxxx-xxxx-xxxx-xxxx"
 
 # Optional
 export DEFAULT_CALENDAR="Personal"
-export LOG_LEVEL="INFO"  # DEBUG, INFO, WARNING, ERROR
+export LOG_LEVEL="WARNING"  # DEBUG, INFO, WARNING, ERROR
 Security Limits
 python
 # Configurable in calendar.py

@@ -2,7 +2,7 @@
 
 ## 🔒 Security Features
 
-iCalendar Sync v2.2.0 implements enterprise-grade security measures:
+iCalendar Sync v2.3.0 implements enterprise-grade security measures:
 
 ### Credential Protection
 
@@ -10,12 +10,12 @@ iCalendar Sync v2.2.0 implements enterprise-grade security measures:
   - macOS: Keychain
   - Windows: Credential Manager
   - Linux: Secret Service (GNOME Keyring, KWallet)
-- **Fallback Encryption**: .env files with 0600 permissions
+- **Fail-Closed Setup**: If keyring is unavailable, setup does not persist secrets to plaintext files
 - **Log Filtering**: Automatic redaction of passwords and emails from logs
 
 ### Input Validation
 
-- **Calendar Names**: Regex validation (`^[a-zA-Z0-9\s_-]+$`)
+- **Calendar Names**: Unicode-aware regex validation (`^[\w\s_-]+$`)
 - **Text Fields**: Sanitization and length limits
   - Summary: 500 characters
   - Description: 5000 characters
@@ -35,7 +35,7 @@ iCalendar Sync v2.2.0 implements enterprise-grade security measures:
 ### Code Security
 
 - **Memory Safety**: Traceback cleanup in exception handlers
-- **Atomic Operations**: File writes use tempfile + move
+- **Credential Persistence**: Keyring-only persistence (no plaintext credential file fallback)
 - **Timeout Protection**: 30-second timeout on interactive inputs
 - **Type Validation**: Strict type checking on all inputs
 
@@ -43,7 +43,8 @@ iCalendar Sync v2.2.0 implements enterprise-grade security measures:
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 2.2.x   | :white_check_mark: |
+| 2.3.x   | :white_check_mark: |
+| 2.2.x   | :x: (upgrade)      |
 | 2.1.x   | :x: (upgrade)      |
 | 2.0.x   | :x: (upgrade)      |
 | < 2.0   | :x:                |
@@ -70,7 +71,7 @@ If you discover a security vulnerability:
   - Medium: 2-4 weeks
   - Low: Next minor release
 
-## 🛡️ Security Audit Results (v2.2.0)
+## 🛡️ Security Audit Results (v2.3.0)
 
 ### Vulnerability Summary
 
@@ -83,10 +84,9 @@ If you discover a security vulnerability:
 
 ### Known Low-Risk Items
 
-1. **HMAC for .env**: Not implemented (mitigated by keyring primary storage)
-2. **ReDoS in SensitiveDataFilter**: Theoretical on extremely long strings
-3. **Windows timeout fallback**: No timeout on Windows (acceptable tradeoff)
-4. **RRULE validation**: Missing FREQ enum validation (minor UX issue)
+1. **ReDoS in SensitiveDataFilter**: Theoretical on extremely long strings
+2. **Windows timeout fallback**: No timeout on Windows (acceptable tradeoff)
+3. **RRULE validation**: Missing FREQ enum validation (minor UX issue)
 
 ## 🔐 Best Practices for Users
 
@@ -100,7 +100,7 @@ If you discover a security vulnerability:
 ### System Hardening
 
 1. **Update Dependencies**: `pip install --upgrade openclaw-icalendar-sync`
-2. **File Permissions**: Ensure ~/.openclaw/.env is 0600 (if used)
+2. **Secret Injection**: Provide `ICLOUD_USERNAME` and `ICLOUD_APP_PASSWORD` via secure OpenClaw env or container secret manager
 3. **Log Rotation**: Configure log rotation for /var/log if running as service
 4. **Network Security**: Use firewall rules if exposed
 
@@ -126,6 +126,8 @@ pip-audit
 bandit -r src/
 ```
 
+Security checks are also enforced in CI via `.github/workflows/security.yml`.
+
 ### Manual Testing
 
 - Injection attacks (SQL, Command, Path Traversal)
@@ -150,6 +152,6 @@ bandit -r src/
 
 ---
 
-**Last Updated**: February 9, 2026  
-**Security Version**: 2.2.0  
-**Audit Date**: February 9, 2026
+**Last Updated**: March 4, 2026
+**Security Version**: 2.3.0
+**Audit Date**: March 4, 2026

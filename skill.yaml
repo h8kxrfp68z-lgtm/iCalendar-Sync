@@ -86,12 +86,12 @@ runtime:
 
 dependencies:
   python:
-    - caldav>=1.3.0
-    - icalendar>=5.0.0
-    - pyyaml>=6.0
-    - python-dateutil>=2.8.0
-    - keyring>=24.0.0
-    - python-dotenv>=1.0.0
+    - caldav>=1.3.0,<2.0.0
+    - icalendar>=5.0.0,<6.0.0
+    - pyyaml>=6.0,<7.0
+    - python-dateutil>=2.8.0,<3.0.0
+    - requests>=2.31.0,<3.0.0
+    - keyring>=24.0.0,<25.0.0
 
 
 # =============================================================================
@@ -104,7 +104,7 @@ environment:
     placeholder: "user@icloud.com"
   
   - name: ICLOUD_APP_PASSWORD
-    description: "App-Specific Password from appleid.apple.com (stored in system keyring, this is fallback only)"
+    description: "App-Specific Password from appleid.apple.com (read from secure OpenClaw env, can be persisted to system keyring by setup)"
     required: true
     secure: true
     placeholder: "xxxx-xxxx-xxxx-xxxx"
@@ -117,7 +117,7 @@ environment:
   - name: LOG_LEVEL
     description: "Logging level (DEBUG, INFO, WARNING, ERROR)"
     required: false
-    default: "INFO"
+    default: "WARNING"
 
 
 # =============================================================================
@@ -170,5 +170,5 @@ commands:
   
   - name: setup
     description: Configure iCloud credentials interactively or via CLI
-    usage: "icalendar-sync setup [--username EMAIL] [--password PWD] [--non-interactive]"
+    usage: "icalendar-sync setup [--username EMAIL] [--non-interactive]"
     permissions: [admin]
