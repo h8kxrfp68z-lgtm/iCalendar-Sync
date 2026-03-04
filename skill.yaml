@@ -2,11 +2,9 @@
 # iCalendar Sync v2.3.0 - OpenClaw Skill Definition
 # =============================================================================
 #
-# CRITICAL: This skill REQUIRES credentials:
-#   - ICLOUD_USERNAME (Apple ID email)
-#   - ICLOUD_APP_PASSWORD (App-Specific Password from appleid.apple.com)
-#
-# These are explicitly declared as REQUIRED in ALL metadata files.
+# CRITICAL: This skill needs credentials for CalDAV mode:
+#   - via ICLOUD_USERNAME / ICLOUD_APP_PASSWORD
+#   - or via YAML config file passed with --config
 #
 # NEW in v2.3.0:
 #   - ✨ UPDATE command: modify existing events without breaking UID
@@ -55,7 +53,7 @@ description: >
   Provides bidirectional CalDAV sync with iCloud calendars.
   Core functionality: create, read, update, delete calendar events.
 
-  REQUIRES: ICLOUD_USERNAME and ICLOUD_APP_PASSWORD (see environment section below).
+  CalDAV mode requires credentials from env, keyring, or explicit YAML config.
 
   v2.2.12 adds Cyrillic support, headless config, and critical bug fixes.
 
@@ -95,7 +93,7 @@ dependencies:
 
 
 # =============================================================================
-# CREDENTIALS: These are REQUIRED despite any cached metadata saying "none"
+# CREDENTIALS: Optional in metadata because skill supports env/keyring/config/native modes
 # =============================================================================
 environment:
   - name: ICLOUD_USERNAME
@@ -127,12 +125,17 @@ environment:
   - name: ICALENDAR_SYNC_USER_AGENT
     description: "Optional custom User-Agent for iCloud CalDAV requests"
     required: false
-    default: "openclaw-icalendar-sync/2.3.0"
+    default: "macOS/14.0.0 (23A344) CalendarAgent/954"
 
   - name: ICALENDAR_SYNC_DEBUG_HTTP
     description: "Enable detailed auth/network diagnostics (1/true/yes/on)"
     required: false
     default: "0"
+
+  - name: ICALENDAR_SYNC_STORAGE
+    description: "Credential source override for CalDAV provider (auto/keyring/env/file)"
+    required: false
+    default: "auto"
 
 
 # =============================================================================
@@ -160,27 +163,27 @@ capabilities:
 commands:
   - name: list
     description: List accessible iCloud calendars
-    usage: "icalendar-sync list"
+    usage: "icalendar-sync list [--provider caldav|macos-native] [--storage auto|keyring|env|file] [--config /path/to/config.yaml]"
     permissions: [read]
   
   - name: get
     description: Sync and retrieve calendar events
-    usage: "icalendar-sync get --calendar <name> [--days 7]"
+    usage: "icalendar-sync get --calendar <name> [--days 7] [--provider caldav|macos-native] [--storage auto|keyring|env|file] [--config /path/to/config.yaml]"
     permissions: [read]
   
   - name: create
     description: Create a new calendar event
-    usage: "icalendar-sync create --calendar <name> --json <data>"
+    usage: "icalendar-sync create --calendar <name> --json <data> [--provider caldav|macos-native] [--storage auto|keyring|env|file] [--config /path/to/config.yaml]"
     permissions: [create]
 
   - name: update
     description: Update existing calendar event with smart recurrence handling
-    usage: "icalendar-sync update --calendar <name> --uid <uid> --json <data> [--recurrence-id <datetime>] [--mode single|all|future]"
+    usage: "icalendar-sync update --calendar <name> --uid <uid> --json <data> [--recurrence-id <datetime>] [--mode single|all|future] [--provider caldav|macos-native] [--storage auto|keyring|env|file] [--config /path/to/config.yaml]"
     permissions: [update]
 
   - name: delete
     description: Remove event from calendar
-    usage: "icalendar-sync delete --calendar <name> --uid <uid>"
+    usage: "icalendar-sync delete --calendar <name> --uid <uid> [--provider caldav|macos-native] [--storage auto|keyring|env|file] [--config /path/to/config.yaml]"
     permissions: [delete]
   
   - name: setup

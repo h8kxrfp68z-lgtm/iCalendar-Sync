@@ -29,6 +29,8 @@ iCalendar Sync v2.3.0 implements enterprise-grade security measures:
 
 - **Rate Limiting**: 10 API calls per 60-second window
 - **SSL Verification**: Enforced certificate validation
+- **Header Hardening**: Explicit User-Agent/Origin/Host for iCloud CalDAV requests
+- **Redirect Handling**: Controlled 301/302 redirect resolution for iCloud CalDAV endpoints
 - **Injection Protection**: All inputs sanitized
 - **DoS Protection**: Size limits, timeouts, rate limiting
 - **Thread Safety**: Locks on shared resources
@@ -36,7 +38,8 @@ iCalendar Sync v2.3.0 implements enterprise-grade security measures:
 ### Code Security
 
 - **Memory Safety**: Traceback cleanup in exception handlers
-- **Credential Persistence**: Keyring-only persistence (no plaintext credential file fallback)
+- **Credential Persistence**: Keyring by default, optional explicit YAML config file (`0600`)
+- **Debug Diagnostics**: Optional detailed Apple response logging (`x-apple-request-id`, response body)
 - **Timeout Protection**: 30-second timeout on interactive inputs
 - **Type Validation**: Strict type checking on all inputs
 

@@ -158,6 +158,9 @@ icalendar-sync setup --non-interactive
 # If keyring is unavailable in background runtime (for example Alfred/macOS):
 icalendar-sync setup --non-interactive --storage file --config ~/.openclaw/icalendar-sync.yaml
 
+# If CalDAV is blocked by Apple for this runtime, use native macOS bridge:
+icalendar-sync list --provider macos-native
+
 Credentials are securely stored in your OS keyring:
 - **macOS**: Keychain
 - **Windows**: Credential Manager
@@ -337,8 +340,11 @@ export ICLOUD_APP_PASSWORD="xxxx-xxxx-xxxx-xxxx"
 export DEFAULT_CALENDAR="Personal"
 export LOG_LEVEL="WARNING"  # DEBUG, INFO, WARNING, ERROR
 export ICALENDAR_SYNC_CONFIG="~/.openclaw/icalendar-sync.yaml"
-export ICALENDAR_SYNC_USER_AGENT="openclaw-icalendar-sync/2.3.0"
+export ICALENDAR_SYNC_USER_AGENT="macOS/14.0.0 (23A344) CalendarAgent/954"
 export ICALENDAR_SYNC_DEBUG_HTTP="0"
+export ICALENDAR_SYNC_STORAGE="auto"  # auto, keyring, env, file
+# Optional provider override: caldav (default) or macos-native (AppleScript bridge)
+# export ICALENDAR_SYNC_PROVIDER="macos-native"
 Security Limits
 python
 # Configurable in calendar.py

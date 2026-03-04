@@ -86,7 +86,9 @@ def test_setup_non_interactive_saves_to_config_file(tmp_path):
         {"ICLOUD_USERNAME": "test@icloud.com", "ICLOUD_APP_PASSWORD": "xxxx-xxxx-xxxx-xxxx"},
         clear=True,
     ):
-        cmd_setup(args)
+        with patch("icalendar_sync.calendar.keyring.set_password") as mock_set_password:
+            cmd_setup(args)
+            mock_set_password.assert_not_called()
 
     assert config_path.exists()
     text = config_path.read_text(encoding="utf-8")
@@ -106,6 +108,21 @@ def test_manager_reads_credentials_from_config_file(tmp_path):
             manager = CalendarManager(config_path=str(config_path))
             assert manager.username == "cfg@icloud.com"
             assert manager.password == "xxxx-xxxx-xxxx-xxxx"
+
+
+def test_manager_file_credential_source_skips_keyring(tmp_path):
+    config_path = tmp_path / "credentials.yaml"
+    config_path.write_text(
+        "username: cfg@icloud.com\napp_password: xxxx-xxxx-xxxx-xxxx\n",
+        encoding="utf-8",
+    )
+
+    with patch.dict(os.environ, {}, clear=True):
+        with patch("icalendar_sync.calendar.keyring.get_password") as mock_get_password:
+            manager = CalendarManager(config_path=str(config_path), credential_source="file")
+            assert manager.username == "cfg@icloud.com"
+            assert manager.password == "xxxx-xxxx-xxxx-xxxx"
+            mock_get_password.assert_not_called()
 
 
 def test_update_validation_rejects_invalid_time_range():

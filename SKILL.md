@@ -59,6 +59,10 @@ For iCloud auth/network troubleshooting, add:
 - `--debug-http` for detailed diagnostics
 - `--user-agent "your-agent-name/1.0"` to override User-Agent
 
+Fallback bridge mode for macOS hosts:
+- `--provider macos-native` routes commands through Calendar.app via AppleScript (`osascript`)
+- Useful when iCloud rejects direct CalDAV auth from background runtime
+
 ## Installation
 
 ```bash
@@ -80,6 +84,8 @@ The password will be prompted interactively and stored in OS keyring.
 
 ```bash
 python -m icalendar_sync list
+# macOS native bridge mode
+python -m icalendar_sync list --provider macos-native
 ```
 
 ### Get Calendar Events

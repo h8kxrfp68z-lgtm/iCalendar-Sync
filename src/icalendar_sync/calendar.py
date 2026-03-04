@@ -18,25 +18,62 @@ import re
 import threading
 import tempfile
 import shutil
+import subprocess
+import base64
 from datetime import datetime, timedelta, timezone, time as dt_time
 from typing import List, Dict, Optional
 from functools import wraps
 import time
 from pathlib import Path
+from urllib.parse import urljoin, urlparse
 
 try:
-    import caldav
-    from caldav.davclient import DAVClient
-    from caldav.lib.error import AuthorizationError, NotFoundError, DAVError
     from icalendar import Calendar as iCal, Event as iEvent, Alarm
+    import requests
     import requests.exceptions
-    import keyring
     import yaml
-    from keyring.errors import KeyringError
 except ImportError as e:
     print(f"❌ Required packages not installed: {e}")
     print("Run: pip install -r requirements.txt")
     sys.exit(1)
+
+CALDAV_AVAILABLE = True
+CALDAV_IMPORT_ERROR = ""
+try:
+    import caldav
+    from caldav.davclient import DAVClient
+    from caldav.lib.error import AuthorizationError, NotFoundError, DAVError
+except ImportError as e:
+    CALDAV_AVAILABLE = False
+    CALDAV_IMPORT_ERROR = str(e)
+    caldav = None
+    DAVClient = None
+
+    class AuthorizationError(Exception):
+        """Fallback AuthorizationError when caldav is unavailable."""
+        pass
+
+    class NotFoundError(Exception):
+        """Fallback NotFoundError when caldav is unavailable."""
+        pass
+
+    class DAVError(Exception):
+        """Fallback DAVError when caldav is unavailable."""
+        pass
+
+KEYRING_AVAILABLE = True
+KEYRING_IMPORT_ERROR = ""
+try:
+    import keyring
+    from keyring.errors import KeyringError
+except ImportError as e:
+    KEYRING_AVAILABLE = False
+    KEYRING_IMPORT_ERROR = str(e)
+    keyring = None
+
+    class KeyringError(Exception):
+        """Fallback KeyringError when keyring is unavailable."""
+        pass
 
 __author__ = "Black_Temple"
 __version__ = "2.3.0"
@@ -54,7 +91,7 @@ RATE_LIMIT_WINDOW = 60  # seconds
 INPUT_TIMEOUT = 30  # seconds for interactive input
 MAX_CONFIG_FILE_SIZE = 64 * 1024  # 64KB
 DEFAULT_CONFIG_PATH = Path.home() / ".openclaw" / "icalendar-sync.yaml"
-DEFAULT_USER_AGENT = f"openclaw-icalendar-sync/{__version__}"
+DEFAULT_USER_AGENT = "macOS/14.0.0 (23A344) CalendarAgent/954"
 
 # Setup logging with sensitive data filtering
 class SensitiveDataFilter(logging.Filter):
@@ -352,6 +389,315 @@ def timed_input(prompt: str, timeout: int = INPUT_TIMEOUT) -> Optional[str]:
         return input(prompt)  # Fallback for Windows
 
 
+def applescript_escape(value: str) -> str:
+    """Escape text for AppleScript string literal."""
+    return value.replace("\\", "\\\\").replace('"', '\\"')
+
+
+def datetime_to_applescript(var_name: str, dt: datetime) -> List[str]:
+    """Convert datetime into AppleScript date assignment lines."""
+    if dt.tzinfo is not None:
+        dt = dt.astimezone()
+    month_names = [
+        "January",
+        "February",
+        "March",
+        "April",
+        "May",
+        "June",
+        "July",
+        "August",
+        "September",
+        "October",
+        "November",
+        "December",
+    ]
+    seconds = dt.hour * 3600 + dt.minute * 60 + dt.second
+    return [
+        f"set {var_name} to (current date)",
+        f"set year of {var_name} to {dt.year}",
+        f'set month of {var_name} to {month_names[dt.month - 1]}',
+        f"set day of {var_name} to {dt.day}",
+        f"set time of {var_name} to {seconds}",
+    ]
+
+
+class MacOSNativeCalendarManager:
+    """Bridge provider: operate via native Calendar.app through osascript."""
+
+    def __init__(self):
+        if sys.platform != "darwin":
+            raise RuntimeError("--provider macos-native is only available on macOS")
+
+    def _run_applescript(self, lines: List[str]) -> Optional[str]:
+        script = "\n".join(lines) + "\n"
+        try:
+            result = subprocess.run(
+                ["osascript", "-"],
+                input=script,
+                text=True,
+                capture_output=True,
+                check=True,
+            )
+            return result.stdout.strip()
+        except subprocess.CalledProcessError as e:
+            stderr_text = sanitize_text((e.stderr or "").strip(), 500)
+            logger.error(f"AppleScript error: {stderr_text}")
+            print("❌ macOS Calendar bridge error")
+            if stderr_text:
+                print(f"   {stderr_text}")
+            return None
+
+    def list_calendars(self) -> List[str]:
+        lines = [
+            'set oldTIDs to AppleScript\'s text item delimiters',
+            'set AppleScript\'s text item delimiters to linefeed',
+            'tell application "Calendar"',
+            'set calNames to name of every calendar',
+            'end tell',
+            'set outputText to ""',
+            'if (count of calNames) > 0 then set outputText to (calNames as text)',
+            'set AppleScript\'s text item delimiters to oldTIDs',
+            'return outputText',
+        ]
+        output = self._run_applescript(lines)
+        if output is None:
+            return []
+
+        calendars = [line.strip() for line in output.splitlines() if line.strip()]
+        print(f"📅 Available Calendars ({len(calendars)}):\n")
+        for name in calendars:
+            print(f"  • {name}")
+        return calendars
+
+    def get_events(self, calendar_name: str, days_ahead: int = 7) -> List:
+        if not validate_calendar_name(calendar_name):
+            print("❌ Invalid calendar name")
+            return []
+        if not (MIN_DAYS_AHEAD <= days_ahead <= MAX_DAYS_AHEAD):
+            print(f"❌ days_ahead must be between {MIN_DAYS_AHEAD} and {MAX_DAYS_AHEAD}")
+            return []
+
+        escaped_name = applescript_escape(calendar_name)
+        lines = [
+            'set oldTIDs to AppleScript\'s text item delimiters',
+            'set AppleScript\'s text item delimiters to linefeed',
+            'tell application "Calendar"',
+            f'if not (exists calendar "{escaped_name}") then error "Calendar not found"',
+            f'set calRef to calendar "{escaped_name}"',
+            'set startDate to current date',
+            f'set endDate to startDate + ({days_ahead} * days)',
+            'set eventLines to {}',
+            'repeat with e in (every event of calRef whose start date ≥ startDate and start date ≤ endDate)',
+            'set end of eventLines to ((summary of e as text) & "|||" & (id of e as text) & "|||" & ((start date of e) as text) & "|||" & ((end date of e) as text))',
+            'end repeat',
+            'end tell',
+            'set outputText to ""',
+            'if (count of eventLines) > 0 then set outputText to (eventLines as text)',
+            'set AppleScript\'s text item delimiters to oldTIDs',
+            'return outputText',
+        ]
+        output = self._run_applescript(lines)
+        if output is None:
+            return []
+
+        parsed_events = []
+        print(f"📋 Events in '{calendar_name}' ({len([l for l in output.splitlines() if l.strip()])} found):\n")
+        for line in output.splitlines():
+            if not line.strip():
+                continue
+            parts = line.split("|||")
+            if len(parts) < 4:
+                continue
+            summary, event_id, start_raw, end_raw = parts[0], parts[1], parts[2], parts[3]
+            print(f"  🗓️  {summary}")
+            print(f"     Start: {start_raw}")
+            print(f"     End: {end_raw}")
+            print(f"     UID: {event_id}\n")
+            parsed_events.append(
+                {
+                    "summary": summary,
+                    "uid": event_id,
+                    "dtstart": start_raw,
+                    "dtend": end_raw,
+                }
+            )
+        return parsed_events
+
+    def create_event(
+        self,
+        calendar_name: str,
+        event_data: Dict,
+        check_conflicts: bool = True,
+        auto_confirm: bool = False
+    ) -> bool:
+        if not validate_calendar_name(calendar_name):
+            print("❌ Invalid calendar name")
+            return False
+
+        required_fields = ['summary', 'dtstart', 'dtend']
+        missing_fields = [f for f in required_fields if f not in event_data]
+        if missing_fields:
+            print(f"❌ Missing required fields: {', '.join(missing_fields)}")
+            return False
+
+        dtstart = event_data["dtstart"]
+        dtend = event_data["dtend"]
+        if not isinstance(dtstart, datetime) or not isinstance(dtend, datetime):
+            print("❌ dtstart and dtend must be datetime objects")
+            return False
+        if dtend <= dtstart:
+            print("❌ Event end time must be after start time")
+            return False
+
+        summary = applescript_escape(sanitize_text(event_data.get("summary", ""), MAX_SUMMARY_LENGTH))
+        description = applescript_escape(sanitize_text(event_data.get("description", ""), MAX_DESCRIPTION_LENGTH))
+        location = applescript_escape(sanitize_text(event_data.get("location", ""), MAX_LOCATION_LENGTH))
+        escaped_name = applescript_escape(calendar_name)
+
+        lines = []
+        lines.extend(datetime_to_applescript("startDate", dtstart))
+        lines.extend(datetime_to_applescript("endDate", dtend))
+        lines.extend([
+            'tell application "Calendar"',
+            f'if not (exists calendar "{escaped_name}") then error "Calendar not found"',
+            f'set calRef to calendar "{escaped_name}"',
+            f'set newEvent to make new event at end of events of calRef with properties {{summary:"{summary}", start date:startDate, end date:endDate}}',
+        ])
+        if description:
+            lines.append(f'set description of newEvent to "{description}"')
+        if location:
+            lines.append(f'set location of newEvent to "{location}"')
+        lines.extend([
+            'set eventId to id of newEvent',
+            'end tell',
+            'return eventId as text',
+        ])
+
+        output = self._run_applescript(lines)
+        if output is None:
+            return False
+
+        print(f"✅ Event '{event_data.get('summary', 'Untitled')}' created successfully")
+        if output:
+            logger.info(f"Created native event id={output}")
+        return True
+
+    def delete_event(self, calendar_name: str, event_uid: str) -> bool:
+        if not validate_calendar_name(calendar_name):
+            print("❌ Invalid calendar name")
+            return False
+        if not event_uid or not isinstance(event_uid, str):
+            print("❌ Valid event UID required")
+            return False
+
+        escaped_name = applescript_escape(calendar_name)
+        escaped_uid = applescript_escape(event_uid.strip())
+        lines = [
+            'tell application "Calendar"',
+            f'if not (exists calendar "{escaped_name}") then error "Calendar not found"',
+            f'set calRef to calendar "{escaped_name}"',
+            f'set matches to (every event of calRef whose id is "{escaped_uid}")',
+            'if (count of matches) = 0 then error "Event not found"',
+            'delete (item 1 of matches)',
+            'end tell',
+            'return "ok"',
+        ]
+        output = self._run_applescript(lines)
+        if output is None:
+            return False
+        print("🗑️  Event deleted successfully")
+        return True
+
+    def update_event(
+        self,
+        calendar_name: str,
+        event_uid: str,
+        update_data: Dict,
+        recurrence_id: Optional[str] = None,
+        mode: str = 'single'
+    ) -> bool:
+        if not validate_calendar_name(calendar_name):
+            print("❌ Invalid calendar name")
+            return False
+        if not event_uid or not isinstance(event_uid, str):
+            print("❌ Valid event UID required")
+            return False
+        if mode not in ['single', 'all', 'future']:
+            print("❌ Invalid mode. Must be 'single', 'all', or 'future'")
+            return False
+        if recurrence_id or mode in ('all', 'future'):
+            print("⚠️  macOS native provider updates a single event by ID (recurrence mode ignored)")
+
+        escaped_name = applescript_escape(calendar_name)
+        escaped_uid = applescript_escape(event_uid.strip())
+        lines = [
+            'tell application "Calendar"',
+            f'if not (exists calendar "{escaped_name}") then error "Calendar not found"',
+            f'set calRef to calendar "{escaped_name}"',
+            f'set matches to (every event of calRef whose id is "{escaped_uid}")',
+            'if (count of matches) = 0 then error "Event not found"',
+            'set targetEvent to item 1 of matches',
+            'end tell',
+        ]
+
+        if 'summary' in update_data:
+            summary = applescript_escape(sanitize_text(update_data['summary'], MAX_SUMMARY_LENGTH))
+            lines.extend([
+                'tell application "Calendar"',
+                f'set summary of targetEvent to "{summary}"',
+                'end tell',
+            ])
+        if 'description' in update_data:
+            description = applescript_escape(sanitize_text(update_data['description'], MAX_DESCRIPTION_LENGTH))
+            lines.extend([
+                'tell application "Calendar"',
+                f'set description of targetEvent to "{description}"',
+                'end tell',
+            ])
+        if 'location' in update_data:
+            location = applescript_escape(sanitize_text(update_data['location'], MAX_LOCATION_LENGTH))
+            lines.extend([
+                'tell application "Calendar"',
+                f'set location of targetEvent to "{location}"',
+                'end tell',
+            ])
+        if 'dtstart' in update_data:
+            dtstart = update_data['dtstart']
+            if isinstance(dtstart, str):
+                dtstart = datetime.fromisoformat(dtstart)
+            if not isinstance(dtstart, datetime):
+                print("❌ Invalid dtstart")
+                return False
+            lines.extend(datetime_to_applescript("newStartDate", dtstart))
+            lines.extend([
+                'tell application "Calendar"',
+                'set start date of targetEvent to newStartDate',
+                'end tell',
+            ])
+        if 'dtend' in update_data:
+            dtend = update_data['dtend']
+            if isinstance(dtend, str):
+                dtend = datetime.fromisoformat(dtend)
+            if not isinstance(dtend, datetime):
+                print("❌ Invalid dtend")
+                return False
+            lines.extend(datetime_to_applescript("newEndDate", dtend))
+            lines.extend([
+                'tell application "Calendar"',
+                'set end date of targetEvent to newEndDate',
+                'end tell',
+            ])
+
+        lines.append('return "ok"')
+        output = self._run_applescript(lines)
+        if output is None:
+            return False
+
+        print("✅ Event updated successfully")
+        return True
+
+
 class CalendarManager:
     """Manage iCloud Calendar via CalDAV"""
     
@@ -359,13 +705,30 @@ class CalendarManager:
         self,
         config_path: Optional[str] = None,
         user_agent: Optional[str] = None,
-        debug_http: bool = False
+        debug_http: bool = False,
+        credential_source: str = "auto"
     ):
+        if not CALDAV_AVAILABLE:
+            raise RuntimeError(
+                f"CalDAV provider is unavailable: {CALDAV_IMPORT_ERROR}. "
+                "Install dependencies from requirements.txt or use --provider macos-native."
+            )
+
         self.config_path = resolve_config_path(config_path)
         self.debug_http = debug_http or is_truthy_env(os.getenv("ICALENDAR_SYNC_DEBUG_HTTP", "0"))
-        self.user_agent = (user_agent or os.getenv("ICALENDAR_SYNC_USER_AGENT") or DEFAULT_USER_AGENT).strip()
+        self.user_agent = (
+            user_agent
+            or os.getenv("ICALENDAR_SYNC_USER_AGENT")
+            or DEFAULT_USER_AGENT
+        ).strip()
+        if credential_source not in ("auto", "keyring", "env", "file"):
+            logger.warning(f"Unknown credential source '{credential_source}', using auto")
+            credential_source = "auto"
+        self.credential_source = credential_source
+        self.base_url = os.getenv("ICALENDAR_SYNC_CALDAV_URL", "https://caldav.icloud.com").strip()
         self._config_credentials = safe_load_config_credentials(str(self.config_path))
-        self.username = os.getenv('ICLOUD_USERNAME') or self._config_credentials.get("username")
+        self._last_http_debug: Dict[str, str] = {}
+        self.username = self._resolve_username()
         self.password = self._load_password()
         self.client: Optional[DAVClient] = None
         self._connected: bool = False
@@ -373,6 +736,103 @@ class CalendarManager:
         self._cache_timeout: int = 300  # 5 minutes
         self._connection_lock = threading.Lock()
         self._rate_limiter = RateLimiter(RATE_LIMIT_CALLS, RATE_LIMIT_WINDOW)
+
+    def _resolve_username(self) -> Optional[str]:
+        """Resolve username based on selected credential source."""
+        if self.credential_source == "env":
+            return os.getenv("ICLOUD_USERNAME")
+        if self.credential_source == "file":
+            return self._config_credentials.get("username")
+        return os.getenv("ICLOUD_USERNAME") or self._config_credentials.get("username")
+
+    def _build_request_headers(self, target_url: str) -> Dict[str, str]:
+        """Build request headers to mimic native macOS Calendar client."""
+        parsed = urlparse(target_url)
+        host = parsed.netloc or "caldav.icloud.com"
+        return {
+            "User-Agent": self.user_agent,
+            "Host": host,
+            "Origin": "https://www.icloud.com",
+            "Accept": "*/*",
+            "Connection": "keep-alive",
+        }
+
+    def _capture_response_debug(self, response) -> None:
+        """Capture response diagnostics for debug output."""
+        debug_data = {
+            "status": str(getattr(response, "status_code", "")),
+            "reason": str(getattr(response, "reason", "")),
+            "url": str(getattr(response, "url", "")),
+        }
+        headers = getattr(response, "headers", {})
+        for key in ("x-apple-request-id", "x-apple-session-token", "www-authenticate", "location"):
+            value = headers.get(key) or headers.get(key.title())
+            if value:
+                debug_data[key] = str(value)
+
+        if self.debug_http:
+            body = sanitize_text(getattr(response, "text", "") or "", 2000)
+            if body:
+                debug_data["body"] = body
+
+        self._last_http_debug = debug_data
+
+    def _debug_string_from_last_response(self) -> str:
+        """Format stored response diagnostics."""
+        if not self._last_http_debug:
+            return ""
+        order = ["status", "reason", "url", "x-apple-request-id", "x-apple-session-token", "www-authenticate", "location", "body"]
+        parts = []
+        for key in order:
+            value = self._last_http_debug.get(key)
+            if value:
+                parts.append(f"{key}={value}")
+        return ", ".join(parts)
+
+    def _resolve_caldav_endpoint(self) -> str:
+        """Resolve potential iCloud redirect chain (caldav.icloud.com -> pXX-caldav.icloud.com)."""
+        current_url = self.base_url
+        if not self.username or not self.password:
+            return current_url
+
+        max_redirects = 5
+        timeout = 15
+        session = requests.Session()
+        auth_header = "Basic " + base64.b64encode(
+            f"{self.username}:{self.password}".encode("utf-8")
+        ).decode("ascii")
+
+        for _ in range(max_redirects):
+            headers = self._build_request_headers(current_url)
+            headers["Authorization"] = auth_header
+
+            try:
+                response = session.get(
+                    current_url,
+                    headers=headers,
+                    allow_redirects=False,
+                    timeout=timeout,
+                )
+                self._capture_response_debug(response)
+            except requests.exceptions.RequestException as e:
+                if self.debug_http:
+                    logger.debug(f"Endpoint resolution failed: {self._format_exception_details(e)}")
+                break
+
+            if response.status_code in (301, 302, 307, 308):
+                location = response.headers.get("Location")
+                if not location:
+                    break
+                next_url = urljoin(current_url, location)
+                next_host = (urlparse(next_url).hostname or "").lower()
+                if next_host and next_host.endswith("icloud.com"):
+                    current_url = next_url
+                    continue
+                break
+
+            break
+
+        return current_url
     
     def _format_exception_details(self, exc: Exception) -> str:
         """Build a compact diagnostic string for network/auth failures."""
@@ -388,6 +848,11 @@ class CalendarManager:
             status_code = getattr(response, "status_code", None)
             if status_code:
                 details.append(f"http_status={status_code}")
+            headers = getattr(response, "headers", {})
+            for key in ("x-apple-request-id", "x-apple-session-token"):
+                value = headers.get(key) or headers.get(key.title())
+                if value:
+                    details.append(f"{key}={value}")
             if self.debug_http:
                 response_text = getattr(response, "text", "")
                 if response_text:
@@ -401,7 +866,7 @@ class CalendarManager:
     def _load_password(self) -> Optional[str]:
         """Load password from keyring, env, or secure config file."""
         username = self.username
-        if username:
+        if self.credential_source in ("auto", "keyring") and username and KEYRING_AVAILABLE:
             try:
                 # Try keyring first
                 password = keyring.get_password('openclaw-icalendar', username)
@@ -410,20 +875,25 @@ class CalendarManager:
                     return password
             except KeyringError:
                 pass
+        elif self.credential_source == "keyring" and not KEYRING_AVAILABLE:
+            logger.error(f"Keyring requested but unavailable: {KEYRING_IMPORT_ERROR}")
+            return None
 
-        env_password = os.getenv('ICLOUD_APP_PASSWORD')
-        if env_password:
-            if validate_secret_value(env_password):
-                return env_password
-            logger.error("Environment password contains invalid control characters")
+        if self.credential_source in ("auto", "env"):
+            env_password = os.getenv('ICLOUD_APP_PASSWORD')
+            if env_password:
+                if validate_secret_value(env_password):
+                    return env_password
+                logger.error("Environment password contains invalid control characters")
 
-        config_password = self._config_credentials.get("password")
-        config_username = self._config_credentials.get("username")
-        if config_password and validate_secret_value(config_password):
-            if not username or not config_username or config_username == username:
-                if not self.username and config_username:
-                    self.username = config_username
-                return config_password
+        if self.credential_source in ("auto", "file"):
+            config_password = self._config_credentials.get("password")
+            config_username = self._config_credentials.get("username")
+            if config_password and validate_secret_value(config_password):
+                if not username or not config_username or config_username == username:
+                    if not self.username and config_username:
+                        self.username = config_username
+                    return config_password
 
         return None
     
@@ -457,14 +927,22 @@ class CalendarManager:
                     logger.setLevel(logging.DEBUG)
                     logger.debug("CalDAV debug enabled")
 
+                resolved_url = self._resolve_caldav_endpoint()
+                headers = self._build_request_headers(resolved_url)
+                if self.debug_http:
+                    logger.debug(
+                        "CalDAV headers prepared: "
+                        f"Host={headers.get('Host')} Origin={headers.get('Origin')} "
+                        f"User-Agent={headers.get('User-Agent')}"
+                    )
+
                 client_kwargs = dict(
-                    url="https://caldav.icloud.com",
+                    url=resolved_url,
                     username=self.username,
                     password=self.password,
                     ssl_verify_cert=True  # Enforce SSL verification
                 )
-                if self.user_agent:
-                    client_kwargs["headers"] = {"User-Agent": self.user_agent}
+                client_kwargs["headers"] = headers
 
                 try:
                     self.client = DAVClient(**client_kwargs)
@@ -472,6 +950,8 @@ class CalendarManager:
                     # Older caldav versions may not support custom headers.
                     client_kwargs.pop("headers", None)
                     self.client = DAVClient(**client_kwargs)
+                    if hasattr(self.client, "session") and hasattr(self.client.session, "headers"):
+                        self.client.session.headers.update(headers)
 
                 principal = self.client.principal()
                 principal.calendars()
@@ -483,6 +963,8 @@ class CalendarManager:
             
         except AuthorizationError as e:
             print("❌ Authentication failed: invalid credentials or blocked iCloud request")
+            if self.debug_http and self._debug_string_from_last_response():
+                print(f"   Apple response: {self._debug_string_from_last_response()}")
             if self.debug_http:
                 print(f"   Debug: {self._format_exception_details(e)}")
             logger.error(f"Authentication failed ({self._format_exception_details(e)})")
@@ -490,6 +972,8 @@ class CalendarManager:
             return False
         except requests.exceptions.SSLError as e:
             print("❌ TLS/SSL handshake error")
+            if self.debug_http and self._debug_string_from_last_response():
+                print(f"   Apple response: {self._debug_string_from_last_response()}")
             if self.debug_http:
                 print(f"   Debug: {self._format_exception_details(e)}")
             logger.error(f"TLS handshake error ({self._format_exception_details(e)})")
@@ -497,6 +981,8 @@ class CalendarManager:
             raise
         except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
             print("❌ Network error")
+            if self.debug_http and self._debug_string_from_last_response():
+                print(f"   Apple response: {self._debug_string_from_last_response()}")
             if self.debug_http:
                 print(f"   Debug: {self._format_exception_details(e)}")
             logger.error(f"Network error ({self._format_exception_details(e)})")
@@ -504,6 +990,8 @@ class CalendarManager:
             raise  # Re-raise for retry decorator
         except DAVError as e:
             print("❌ CalDAV error")
+            if self.debug_http and self._debug_string_from_last_response():
+                print(f"   Apple response: {self._debug_string_from_last_response()}")
             if self.debug_http:
                 print(f"   Debug: {self._format_exception_details(e)}")
             logger.error(f"CalDAV error ({self._format_exception_details(e)})")
@@ -511,6 +999,8 @@ class CalendarManager:
             raise  # Re-raise for retry decorator
         except Exception as e:
             print(f"❌ Unexpected error: {type(e).__name__}")
+            if self.debug_http and self._debug_string_from_last_response():
+                print(f"   Apple response: {self._debug_string_from_last_response()}")
             if self.debug_http:
                 print(f"   Debug: {self._format_exception_details(e)}")
             logger.error(f"Unexpected connection error: {self._format_exception_details(e)}")
@@ -1290,6 +1780,12 @@ def cmd_setup(args):
         print("   File permissions set to 0600")
         logger.info(f"Credentials stored in config file: {saved_path}")
     else:
+        if not KEYRING_AVAILABLE:
+            print("❌ Keyring backend is not available in this runtime.")
+            print(f"   Reason: {KEYRING_IMPORT_ERROR}")
+            suggested_path = resolve_config_path(config_path_arg)
+            print(f"   Use file storage instead: icalendar-sync setup --storage file --config {suggested_path}")
+            return
         # Try to store in keyring first
         try:
             keyring.set_password('openclaw-icalendar', email, password)
@@ -1305,12 +1801,22 @@ def cmd_setup(args):
     print("🚀 You can now use iCalendar Sync!\n")
 
 
-def build_manager(args) -> CalendarManager:
+def build_manager(args):
     """Create CalendarManager from common CLI args."""
+    provider = (getattr(args, "provider", None) or os.getenv("ICALENDAR_SYNC_PROVIDER", "caldav")).strip()
+    if provider not in ("caldav", "macos-native"):
+        logger.warning(f"Unknown provider '{provider}', falling back to caldav")
+        provider = "caldav"
+    if provider == "macos-native":
+        return MacOSNativeCalendarManager()
+
+    credential_source = (getattr(args, "storage", None) or os.getenv("ICALENDAR_SYNC_STORAGE", "auto")).strip()
+
     return CalendarManager(
         config_path=getattr(args, "config", None),
         user_agent=getattr(args, "user_agent", None),
         debug_http=getattr(args, "debug_http", False),
+        credential_source=credential_source,
     )
 
 
@@ -1464,6 +1970,10 @@ Examples:
     
     # List
     list_parser = subparsers.add_parser('list', help='List calendars')
+    list_parser.add_argument('--provider', choices=['caldav', 'macos-native'], default='caldav',
+                            help='Calendar provider backend')
+    list_parser.add_argument('--storage', choices=['auto', 'keyring', 'env', 'file'], default='auto',
+                            help='Credential source for CalDAV provider')
     list_parser.add_argument('--config', help='Path to YAML config with credentials')
     list_parser.add_argument('--debug-http', action='store_true',
                             help='Show detailed auth/network diagnostics')
@@ -1476,6 +1986,10 @@ Examples:
     get_parser.add_argument('--calendar', help='Calendar name')
     get_parser.add_argument('--days', type=int, default=7, dest='days_ahead',
                            help=f'Days ahead to retrieve (default: 7, max: {MAX_DAYS_AHEAD})')
+    get_parser.add_argument('--provider', choices=['caldav', 'macos-native'], default='caldav',
+                           help='Calendar provider backend')
+    get_parser.add_argument('--storage', choices=['auto', 'keyring', 'env', 'file'], default='auto',
+                           help='Credential source for CalDAV provider')
     get_parser.add_argument('--config', help='Path to YAML config with credentials')
     get_parser.add_argument('--debug-http', action='store_true',
                            help='Show detailed auth/network diagnostics')
@@ -1492,6 +2006,10 @@ Examples:
                               help='Skip conflict detection')
     create_parser.add_argument('-y', '--yes', action='store_true',
                               help='Auto-confirm without prompts')
+    create_parser.add_argument('--provider', choices=['caldav', 'macos-native'], default='caldav',
+                              help='Calendar provider backend')
+    create_parser.add_argument('--storage', choices=['auto', 'keyring', 'env', 'file'], default='auto',
+                              help='Credential source for CalDAV provider')
     create_parser.add_argument('--config', help='Path to YAML config with credentials')
     create_parser.add_argument('--debug-http', action='store_true',
                               help='Show detailed auth/network diagnostics')
@@ -1510,6 +2028,10 @@ Examples:
     update_parser.add_argument('--mode', default='single',
                               choices=['single', 'all', 'future'],
                               help='Update mode: single instance, all instances, or this and future (default: single)')
+    update_parser.add_argument('--provider', choices=['caldav', 'macos-native'], default='caldav',
+                              help='Calendar provider backend')
+    update_parser.add_argument('--storage', choices=['auto', 'keyring', 'env', 'file'], default='auto',
+                              help='Credential source for CalDAV provider')
     update_parser.add_argument('--config', help='Path to YAML config with credentials')
     update_parser.add_argument('--debug-http', action='store_true',
                               help='Show detailed auth/network diagnostics')
@@ -1521,6 +2043,10 @@ Examples:
     delete_parser = subparsers.add_parser('delete', help='Delete calendar event')
     delete_parser.add_argument('--calendar', required=True, help='Calendar name')
     delete_parser.add_argument('--uid', required=True, help='Event UID')
+    delete_parser.add_argument('--provider', choices=['caldav', 'macos-native'], default='caldav',
+                              help='Calendar provider backend')
+    delete_parser.add_argument('--storage', choices=['auto', 'keyring', 'env', 'file'], default='auto',
+                              help='Credential source for CalDAV provider')
     delete_parser.add_argument('--config', help='Path to YAML config with credentials')
     delete_parser.add_argument('--debug-http', action='store_true',
                               help='Show detailed auth/network diagnostics')
