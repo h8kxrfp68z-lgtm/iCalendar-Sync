@@ -27,15 +27,56 @@ import time
 from pathlib import Path
 from urllib.parse import urljoin, urlparse
 
+ICALENDAR_AVAILABLE = True
+ICALENDAR_IMPORT_ERROR = ""
 try:
     from icalendar import Calendar as iCal, Event as iEvent, Alarm
-    import requests
-    import requests.exceptions
-    import yaml
 except ImportError as e:
-    print(f"❌ Required packages not installed: {e}")
-    print("Run: pip install -r requirements.txt")
-    sys.exit(1)
+    ICALENDAR_AVAILABLE = False
+    ICALENDAR_IMPORT_ERROR = str(e)
+    iCal = None
+    iEvent = None
+    Alarm = None
+
+REQUESTS_AVAILABLE = True
+REQUESTS_IMPORT_ERROR = ""
+try:
+    import requests
+    from requests.exceptions import RequestException, SSLError, ConnectionError, Timeout
+except ImportError as e:
+    REQUESTS_AVAILABLE = False
+    REQUESTS_IMPORT_ERROR = str(e)
+    requests = None
+
+    class RequestException(Exception):
+        """Fallback RequestException when requests is unavailable."""
+        pass
+
+    class SSLError(Exception):
+        """Fallback SSLError when requests is unavailable."""
+        pass
+
+    class ConnectionError(Exception):
+        """Fallback ConnectionError when requests is unavailable."""
+        pass
+
+    class Timeout(Exception):
+        """Fallback Timeout when requests is unavailable."""
+        pass
+
+YAML_AVAILABLE = True
+YAML_IMPORT_ERROR = ""
+try:
+    import yaml
+    YAMLError = yaml.YAMLError
+except ImportError as e:
+    YAML_AVAILABLE = False
+    YAML_IMPORT_ERROR = str(e)
+    yaml = None
+
+    class YAMLError(Exception):
+        """Fallback YAMLError when pyyaml is unavailable."""
+        pass
 
 CALDAV_AVAILABLE = True
 CALDAV_IMPORT_ERROR = ""
@@ -160,7 +201,7 @@ def retry(max_attempts: int = 3, delay: float = 1.0, backoff: float = 2.0):
             while attempt < max_attempts:
                 try:
                     return func(*args, **kwargs)
-                except (requests.exceptions.RequestException, DAVError) as e:
+                except (RequestException, DAVError) as e:
                     attempt += 1
                     last_exception = e
                     
@@ -247,6 +288,10 @@ def safe_load_config_credentials(config_path: Optional[str] = None) -> Dict[str,
                 f"Config file permissions are too open ({oct(file_mode)}). Expected 0o600."
             )
 
+        if not YAML_AVAILABLE:
+            logger.error(f"YAML support is unavailable: {YAML_IMPORT_ERROR}")
+            return {}
+
         with open(path, "r", encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
 
@@ -278,13 +323,17 @@ def safe_load_config_credentials(config_path: Optional[str] = None) -> Dict[str,
             result["password"] = password
         return result
 
-    except (OSError, yaml.YAMLError) as e:
+    except (OSError, YAMLError) as e:
         logger.error(f"Failed to read config file: {e}")
         return {}
 
 
 def save_config_credentials(config_path: Optional[str], username: str, password: str) -> Optional[Path]:
     """Persist credentials to a YAML config file with strict permissions."""
+    if not YAML_AVAILABLE:
+        logger.error(f"YAML support is unavailable: {YAML_IMPORT_ERROR}")
+        return None
+
     path = resolve_config_path(config_path).expanduser()
     tmp_path: Optional[Path] = None
 
@@ -315,7 +364,7 @@ def save_config_credentials(config_path: Optional[str], username: str, password:
         os.chmod(path, 0o600)
         return path
 
-    except (OSError, yaml.YAMLError) as e:
+    except (OSError, YAMLError) as e:
         logger.error(f"Failed to write config file: {e}")
         if tmp_path and tmp_path.exists():
             try:
@@ -708,10 +757,18 @@ class CalendarManager:
         debug_http: bool = False,
         credential_source: str = "auto"
     ):
+        missing_dependencies = []
         if not CALDAV_AVAILABLE:
+            missing_dependencies.append(f"caldav ({CALDAV_IMPORT_ERROR})")
+        if not REQUESTS_AVAILABLE:
+            missing_dependencies.append(f"requests ({REQUESTS_IMPORT_ERROR})")
+        if not ICALENDAR_AVAILABLE:
+            missing_dependencies.append(f"icalendar ({ICALENDAR_IMPORT_ERROR})")
+        if missing_dependencies:
             raise RuntimeError(
-                f"CalDAV provider is unavailable: {CALDAV_IMPORT_ERROR}. "
-                "Install dependencies from requirements.txt or use --provider macos-native."
+                "CalDAV provider is unavailable: missing dependencies: "
+                + ", ".join(missing_dependencies)
+                + ". Install dependencies from requirements.txt or use --provider macos-native."
             )
 
         self.config_path = resolve_config_path(config_path)
@@ -814,7 +871,7 @@ class CalendarManager:
                     timeout=timeout,
                 )
                 self._capture_response_debug(response)
-            except requests.exceptions.RequestException as e:
+            except RequestException as e:
                 if self.debug_http:
                     logger.debug(f"Endpoint resolution failed: {self._format_exception_details(e)}")
                 break
@@ -970,7 +1027,7 @@ class CalendarManager:
             logger.error(f"Authentication failed ({self._format_exception_details(e)})")
             self._connected = False
             return False
-        except requests.exceptions.SSLError as e:
+        except SSLError as e:
             print("❌ TLS/SSL handshake error")
             if self.debug_http and self._debug_string_from_last_response():
                 print(f"   Apple response: {self._debug_string_from_last_response()}")
@@ -979,7 +1036,7 @@ class CalendarManager:
             logger.error(f"TLS handshake error ({self._format_exception_details(e)})")
             self._connected = False
             raise
-        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
+        except (ConnectionError, Timeout) as e:
             print("❌ Network error")
             if self.debug_http and self._debug_string_from_last_response():
                 print(f"   Apple response: {self._debug_string_from_last_response()}")
