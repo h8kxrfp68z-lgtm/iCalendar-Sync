@@ -163,27 +163,27 @@ capabilities:
 commands:
   - name: list
     description: List accessible iCloud calendars
-    usage: "icalendar-sync list [--provider caldav|macos-native] [--storage auto|keyring|env|file] [--config /path/to/config.yaml]"
+    usage: "icalendar-sync list [--provider auto|caldav|macos-native] [--storage auto|keyring|env|file] [--config /path/to/config.yaml]"
     permissions: [read]
   
   - name: get
     description: Sync and retrieve calendar events
-    usage: "icalendar-sync get --calendar <name> [--days 7] [--provider caldav|macos-native] [--storage auto|keyring|env|file] [--config /path/to/config.yaml]"
+    usage: "icalendar-sync get --calendar <name> [--days 7] [--provider auto|caldav|macos-native] [--storage auto|keyring|env|file] [--config /path/to/config.yaml]"
     permissions: [read]
   
   - name: create
     description: Create a new calendar event
-    usage: "icalendar-sync create --calendar <name> --json <data> [--provider caldav|macos-native] [--storage auto|keyring|env|file] [--config /path/to/config.yaml]"
+    usage: "icalendar-sync create --calendar <name> --json <data> [--provider auto|caldav|macos-native] [--storage auto|keyring|env|file] [--config /path/to/config.yaml]"
     permissions: [create]
 
   - name: update
     description: Update existing calendar event with smart recurrence handling
-    usage: "icalendar-sync update --calendar <name> --uid <uid> --json <data> [--recurrence-id <datetime>] [--mode single|all|future] [--provider caldav|macos-native] [--storage auto|keyring|env|file] [--config /path/to/config.yaml]"
+    usage: "icalendar-sync update --calendar <name> --uid <uid> --json <data> [--recurrence-id <datetime>] [--mode single|all|future] [--provider auto|caldav|macos-native] [--storage auto|keyring|env|file] [--config /path/to/config.yaml]"
     permissions: [update]
 
   - name: delete
     description: Remove event from calendar
-    usage: "icalendar-sync delete --calendar <name> --uid <uid> [--provider caldav|macos-native] [--storage auto|keyring|env|file] [--config /path/to/config.yaml]"
+    usage: "icalendar-sync delete --calendar <name> --uid <uid> [--provider auto|caldav|macos-native] [--storage auto|keyring|env|file] [--config /path/to/config.yaml]"
     permissions: [delete]
   
   - name: setup

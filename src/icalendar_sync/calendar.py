@@ -1803,10 +1803,16 @@ def cmd_setup(args):
 
 def build_manager(args):
     """Create CalendarManager from common CLI args."""
-    provider = (getattr(args, "provider", None) or os.getenv("ICALENDAR_SYNC_PROVIDER", "caldav")).strip()
-    if provider not in ("caldav", "macos-native"):
-        logger.warning(f"Unknown provider '{provider}', falling back to caldav")
+    provider = (getattr(args, "provider", None) or os.getenv("ICALENDAR_SYNC_PROVIDER", "auto")).strip()
+    if provider not in ("auto", "caldav", "macos-native"):
+        logger.warning(f"Unknown provider '{provider}', falling back to auto")
+        provider = "auto"
+
+    if provider == "auto":
+        if sys.platform == "darwin":
+            return MacOSNativeCalendarManager()
         provider = "caldav"
+
     if provider == "macos-native":
         return MacOSNativeCalendarManager()
 
@@ -1826,10 +1832,47 @@ def build_manager(args):
     )
 
 
+def run_with_fallback(args, operation_name: str, *operation_args, **operation_kwargs):
+    """Run provider operation with automatic macOS native fallback on CalDAV auth/connect failure."""
+    provider_pref = (getattr(args, "provider", None) or os.getenv("ICALENDAR_SYNC_PROVIDER", "auto")).strip()
+    if provider_pref not in ("auto", "caldav", "macos-native"):
+        provider_pref = "auto"
+
+    try:
+        manager = build_manager(args)
+    except RuntimeError as e:
+        if sys.platform == "darwin" and provider_pref in ("auto", "caldav"):
+            print("⚠️  CalDAV provider unavailable, switching to macOS native provider")
+            logger.warning(f"CalDAV unavailable, fallback to macOS native: {e}")
+            manager = MacOSNativeCalendarManager()
+        else:
+            print(f"❌ {e}")
+            logger.error(str(e))
+            return None
+
+    operation = getattr(manager, operation_name)
+    result = operation(*operation_args, **operation_kwargs)
+
+    should_fallback = (
+        sys.platform == "darwin"
+        and provider_pref in ("auto", "caldav")
+        and isinstance(manager, CalendarManager)
+        and (result is False or result is None or result == [])
+        and not manager._connected
+    )
+    if should_fallback:
+        print("⚠️  CalDAV authentication/connect failed, switching to macOS native provider")
+        logger.warning("Fallback from CalDAV to macOS native provider")
+        native_manager = MacOSNativeCalendarManager()
+        native_operation = getattr(native_manager, operation_name)
+        return native_operation(*operation_args, **operation_kwargs)
+
+    return result
+
+
 def cmd_list(args):
     """List calendars"""
-    manager = build_manager(args)
-    manager.list_calendars()
+    run_with_fallback(args, "list_calendars")
 
 
 def cmd_get_events(args):
@@ -1838,8 +1881,7 @@ def cmd_get_events(args):
         print("❌ Calendar name required")
         return
     
-    manager = build_manager(args)
-    manager.get_events(args.calendar, args.days_ahead)
+    run_with_fallback(args, "get_events", args.calendar, args.days_ahead)
 
 
 def cmd_create_event(args):
@@ -1869,10 +1911,16 @@ def cmd_create_event(args):
         if 'dtend' in event_data and isinstance(event_data['dtend'], str):
             event_data['dtend'] = datetime.fromisoformat(event_data['dtend'])
         
-        manager = build_manager(args)
         check_conflicts = not args.no_conflict_check if hasattr(args, 'no_conflict_check') else True
         auto_confirm = getattr(args, 'yes', False)
-        manager.create_event(args.calendar, event_data, check_conflicts=check_conflicts, auto_confirm=auto_confirm)
+        run_with_fallback(
+            args,
+            "create_event",
+            args.calendar,
+            event_data,
+            check_conflicts=check_conflicts,
+            auto_confirm=auto_confirm,
+        )
         
     except json.JSONDecodeError as e:
         print(f"❌ Invalid JSON: {e}")
@@ -1888,8 +1936,7 @@ def cmd_delete_event(args):
         print("❌ Calendar and event UID required")
         return
 
-    manager = build_manager(args)
-    manager.delete_event(args.calendar, args.uid)
+    run_with_fallback(args, "delete_event", args.calendar, args.uid)
 
 
 def cmd_update_event(args):
@@ -1923,8 +1970,9 @@ def cmd_update_event(args):
         mode = getattr(args, 'mode', 'single')
         recurrence_id = getattr(args, 'recurrence_id', None)
 
-        manager = build_manager(args)
-        manager.update_event(
+        run_with_fallback(
+            args,
+            "update_event",
             args.calendar,
             args.uid,
             update_data,
@@ -1976,7 +2024,7 @@ Examples:
     
     # List
     list_parser = subparsers.add_parser('list', help='List calendars')
-    list_parser.add_argument('--provider', choices=['caldav', 'macos-native'], default='caldav',
+    list_parser.add_argument('--provider', choices=['auto', 'caldav', 'macos-native'], default='auto',
                             help='Calendar provider backend')
     list_parser.add_argument('--storage', choices=['auto', 'keyring', 'env', 'file'], default=None,
                             help='Credential source for CalDAV provider (default: auto)')
@@ -1992,7 +2040,7 @@ Examples:
     get_parser.add_argument('--calendar', help='Calendar name')
     get_parser.add_argument('--days', type=int, default=7, dest='days_ahead',
                            help=f'Days ahead to retrieve (default: 7, max: {MAX_DAYS_AHEAD})')
-    get_parser.add_argument('--provider', choices=['caldav', 'macos-native'], default='caldav',
+    get_parser.add_argument('--provider', choices=['auto', 'caldav', 'macos-native'], default='auto',
                            help='Calendar provider backend')
     get_parser.add_argument('--storage', choices=['auto', 'keyring', 'env', 'file'], default=None,
                            help='Credential source for CalDAV provider (default: auto)')
@@ -2012,7 +2060,7 @@ Examples:
                               help='Skip conflict detection')
     create_parser.add_argument('-y', '--yes', action='store_true',
                               help='Auto-confirm without prompts')
-    create_parser.add_argument('--provider', choices=['caldav', 'macos-native'], default='caldav',
+    create_parser.add_argument('--provider', choices=['auto', 'caldav', 'macos-native'], default='auto',
                               help='Calendar provider backend')
     create_parser.add_argument('--storage', choices=['auto', 'keyring', 'env', 'file'], default=None,
                               help='Credential source for CalDAV provider (default: auto)')
@@ -2034,7 +2082,7 @@ Examples:
     update_parser.add_argument('--mode', default='single',
                               choices=['single', 'all', 'future'],
                               help='Update mode: single instance, all instances, or this and future (default: single)')
-    update_parser.add_argument('--provider', choices=['caldav', 'macos-native'], default='caldav',
+    update_parser.add_argument('--provider', choices=['auto', 'caldav', 'macos-native'], default='auto',
                               help='Calendar provider backend')
     update_parser.add_argument('--storage', choices=['auto', 'keyring', 'env', 'file'], default=None,
                               help='Credential source for CalDAV provider (default: auto)')
@@ -2049,7 +2097,7 @@ Examples:
     delete_parser = subparsers.add_parser('delete', help='Delete calendar event')
     delete_parser.add_argument('--calendar', required=True, help='Calendar name')
     delete_parser.add_argument('--uid', required=True, help='Event UID')
-    delete_parser.add_argument('--provider', choices=['caldav', 'macos-native'], default='caldav',
+    delete_parser.add_argument('--provider', choices=['auto', 'caldav', 'macos-native'], default='auto',
                               help='Calendar provider backend')
     delete_parser.add_argument('--storage', choices=['auto', 'keyring', 'env', 'file'], default=None,
                               help='Credential source for CalDAV provider (default: auto)')

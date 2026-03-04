@@ -138,6 +138,20 @@ def test_build_manager_uses_file_source_when_config_explicit():
         assert mock_manager_cls.call_args.kwargs["credential_source"] == "file"
 
 
+def test_build_manager_auto_uses_native_on_macos():
+    args = argparse.Namespace(
+        provider="auto",
+        storage=None,
+        config=None,
+        user_agent=None,
+        debug_http=False,
+    )
+    with patch("icalendar_sync.calendar.sys.platform", "darwin"):
+        with patch("icalendar_sync.calendar.MacOSNativeCalendarManager") as mock_native_cls:
+            build_manager(args)
+            mock_native_cls.assert_called_once()
+
+
 def test_build_manager_respects_explicit_storage_over_config():
     args = argparse.Namespace(
         provider="caldav",
