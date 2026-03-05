@@ -88,7 +88,7 @@ except ImportError as exc:  # pragma: no cover - depends on runtime environment
     keyring = _MissingKeyring()
 
 __author__ = "Black_Temple"
-__version__ = "2.3.0"
+__version__ = "2.4"
 
 MAX_CALENDAR_NAME_LENGTH = 255
 MAX_SUMMARY_LENGTH = 500

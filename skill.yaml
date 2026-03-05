@@ -1,12 +1,12 @@
 # =============================================================================
-# iCalendar Sync v2.3.0 - OpenClaw Skill Definition
+# iCalendar Sync v2.4 - OpenClaw Skill Definition
 # =============================================================================
 #
 # CRITICAL: This skill needs credentials for CalDAV mode:
 #   - via ICLOUD_USERNAME / ICLOUD_APP_PASSWORD
 #   - or via YAML config file passed with --config
 #
-# NEW in v2.3.0:
+# NEW in v2.4:
 #   - ✨ UPDATE command: modify existing events without breaking UID
 #   - 🔁 Smart Recurrence: update single instance, all, or future instances
 #   - 📅 Exception handling: RECURRENCE-ID support for series modifications
@@ -47,7 +47,7 @@
 
 name: icalendar-sync
 display_name: "iCalendar Sync"
-version: 2.3.0
+version: "2.4"
 description: >
   Professional iCloud Calendar integration for OpenClaw.
   Provides bidirectional CalDAV sync with iCloud calendars.

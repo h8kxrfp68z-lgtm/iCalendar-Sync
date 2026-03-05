@@ -2,7 +2,7 @@
 
 ## 🔒 Security Features
 
-iCalendar Sync v2.3.0 implements enterprise-grade security measures:
+iCalendar Sync v2.4 implements enterprise-grade security measures:
 
 ### Credential Protection
 
@@ -47,7 +47,7 @@ iCalendar Sync v2.3.0 implements enterprise-grade security measures:
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 2.3.x   | :white_check_mark: |
+| 2.4.x   | :white_check_mark: |
 | 2.2.x   | :x: (upgrade)      |
 | 2.1.x   | :x: (upgrade)      |
 | 2.0.x   | :x: (upgrade)      |
@@ -75,7 +75,7 @@ If you discover a security vulnerability:
   - Medium: 2-4 weeks
   - Low: Next minor release
 
-## 🛡️ Security Audit Results (v2.3.0)
+## 🛡️ Security Audit Results (v2.4)
 
 ### Vulnerability Summary
 
@@ -157,6 +157,6 @@ Security checks are also enforced in CI via `.github/workflows/security.yml`.
 
 ---
 
-**Last Updated**: March 4, 2026
-**Security Version**: 2.3.0
+**Last Updated**: March 5, 2026
+**Security Version**: 2.4
 **Audit Date**: March 4, 2026

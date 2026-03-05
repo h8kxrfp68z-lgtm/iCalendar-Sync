@@ -5,7 +5,7 @@ i18n - Internationalization support
 Supports: English, Spanish, French, German, Italian, Russian, Dutch, Swedish, Finnish, Danish, Ukrainian
 
 @author: Black_Temple
-@version: 2.3.0
+@version: 2.4
 """
 
 import os

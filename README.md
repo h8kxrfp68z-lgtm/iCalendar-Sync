@@ -2,7 +2,7 @@
 
 Secure iCloud Calendar integration for OpenClaw agents.
 
-[![Version](https://img.shields.io/badge/version-2.3.0-blue.svg)](https://github.com/h8kxrfp68z-lgtm/iCalendar-Sync/releases)
+[![Version](https://img.shields.io/badge/version-2.4-blue.svg)](https://github.com/h8kxrfp68z-lgtm/iCalendar-Sync/releases)
 [![Security](https://img.shields.io/badge/security-A-brightgreen.svg)](SECURITY.md)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](https://opensource.org/licenses/MIT)
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/downloads/)
