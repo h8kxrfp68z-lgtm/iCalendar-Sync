@@ -1,171 +1,127 @@
-# iCloud Calendar Sync Skill
+---
+name: icalendar-sync
+description: Secure iCloud Calendar operations for OpenClaw with CalDAV and macOS native bridge providers. Use when tasks require calendar listing, event retrieval, event creation, event updates (including recurring series modes), event deletion, or credential setup via keyring/environment/config file.
+---
 
-Synchronizes calendar events between local system and iCloud.
+# iCalendar Sync
 
-## ⚠️ Security Requirements
+Use this skill to perform iCloud calendar CRUD operations from OpenClaw agents.
 
-**CRITICAL - Read before installation:**
+## 1. Prepare Credentials Securely
 
-### 1. Use App-Specific Password ONLY
+Use App-Specific Passwords only (never the primary Apple ID password).
 
-- Generate at https://appleid.apple.com/account/security
-- **NEVER use your main Apple ID password**
-- Can be revoked anytime if compromised
-
-### 2. Use OS Keyring for Credential Storage
-
-The skill stores credentials securely in your operating system's keyring:
-- **macOS**: Keychain
-- **Windows**: Credential Manager
-- **Linux**: Secret Service API
-
-If your runtime cannot access GUI keyring prompts (for example background agents on macOS), use explicit file storage with strict permissions:
-- `python -m icalendar_sync setup --storage file --config ~/.openclaw/icalendar-sync.yaml --non-interactive`
-- The file is written as YAML with mode `0600`.
-
-### 3. For Headless/Automated Environments
-
-For Docker, CI/CD, or headless servers where interactive input is not possible:
-
-**Option A: Environment Variables** (standard, secure method)
-```bash
-# Set credentials as environment variables
-export ICLOUD_USERNAME="user@icloud.com"
-export ICLOUD_APP_PASSWORD="xxxx-xxxx-xxxx-xxxx"
-
-# Run setup
-python -m icalendar_sync setup --non-interactive
-```
-
-**Option B: Docker/Kubernetes Secrets** (most secure for containers)
-```bash
-# Docker secrets
-docker run --secret icloud_username --secret icloud_password ...
-
-# Kubernetes secrets
-kubectl create secret generic icloud-credentials \
-  --from-literal=username=user@icloud.com \
-  --from-literal=password=xxxx-xxxx-xxxx-xxxx
-```
-
-Credentials are read in this order:
-1. OS keyring (if available and configured)
-2. Environment variables (`ICLOUD_USERNAME`, `ICLOUD_APP_PASSWORD`)
-3. YAML config file (`~/.openclaw/icalendar-sync.yaml` or `--config`)
-
-`setup` no longer writes plaintext fallback files (such as `~/.openclaw/.env`) when keyring is unavailable.
-
-For iCloud auth/network troubleshooting, add:
-- `--debug-http` for detailed diagnostics
-- `--user-agent "your-agent-name/1.0"` to override User-Agent
-
-Fallback bridge mode for macOS hosts:
-- `--provider macos-native` routes commands through Calendar.app via AppleScript (`osascript`)
-- Useful when iCloud rejects direct CalDAV auth from background runtime
-
-## Installation
+Prefer keyring storage:
 
 ```bash
-./install.sh
-```
-
-## Usage
-
-### Setup Credentials (Interactive)
-
-```bash
-# Interactive mode - password prompted securely
 python -m icalendar_sync setup --username user@icloud.com
 ```
 
-The password will be prompted interactively and stored in OS keyring.
+Use non-interactive setup for automation:
 
-### List Calendars
+```bash
+export ICLOUD_USERNAME="user@icloud.com"
+export ICLOUD_APP_PASSWORD="xxxx-xxxx-xxxx-xxxx"
+python -m icalendar_sync setup --non-interactive
+```
+
+Use file storage only when keyring is unavailable (headless or GUI-restricted runtime):
+
+```bash
+python -m icalendar_sync setup --non-interactive --storage file --config ~/.openclaw/icalendar-sync.yaml
+```
+
+## 2. Choose Provider Deliberately
+
+- `--provider auto`: macOS uses native bridge, non-macOS uses CalDAV.
+- `--provider caldav`: force direct iCloud CalDAV.
+- `--provider macos-native`: force Calendar.app bridge (macOS only).
+
+For CalDAV diagnostics, add:
+
+```bash
+--debug-http --user-agent "your-agent/1.0"
+```
+
+## 3. Execute Calendar Operations
+
+List calendars:
 
 ```bash
 python -m icalendar_sync list
-# macOS native bridge mode
-python -m icalendar_sync list --provider macos-native
 ```
 
-### Get Calendar Events
+Get events:
 
 ```bash
 python -m icalendar_sync get --calendar "Personal" --days 7
 ```
 
-### Create Event
+Create event:
 
 ```bash
-python -m icalendar_sync create \
-  --calendar "Personal" \
-  --json '{
-    "summary": "Meeting",
-    "dtstart": "2026-02-15T14:00:00+03:00",
-    "dtend": "2026-02-15T15:00:00+03:00"
-  }'
+python -m icalendar_sync create --calendar "Personal" --json '{
+  "summary": "Meeting",
+  "dtstart": "2026-02-15T14:00:00+03:00",
+  "dtend": "2026-02-15T15:00:00+03:00"
+}'
 ```
 
-### Update Event
+Update event (simple):
 
-**Update simple event:**
 ```bash
-python -m icalendar_sync update \
-  --calendar "Personal" \
-  --uid "event-uid-here" \
-  --json '{"summary": "Updated Meeting Title"}'
+python -m icalendar_sync update --calendar "Personal" --uid "event-uid" --json '{"summary":"Updated title"}'
 ```
 
-**Update single instance of recurring event:**
+Update recurring event instance:
+
 ```bash
 python -m icalendar_sync update \
   --calendar "Work" \
-  --uid "recurring-event-uid" \
-  --recurrence-id "2026-02-20T09:00:00+03:00" \
-  --mode single \
-  --json '{"dtstart": "2026-02-21T09:00:00+03:00"}'
-```
-
-**Update all instances:**
-```bash
-python -m icalendar_sync update \
-  --calendar "Work" \
-  --uid "recurring-event-uid" \
-  --mode all \
-  --json '{"summary": "New Title for All Instances"}'
-```
-
-**Update this and future instances:**
-```bash
-python -m icalendar_sync update \
-  --calendar "Work" \
-  --uid "recurring-event-uid" \
+  --uid "series-uid" \
   --recurrence-id "2026-03-01T09:00:00+03:00" \
-  --mode future \
-  --json '{"dtstart": "2026-03-01T14:00:00+03:00"}'
+  --mode single \
+  --json '{"summary":"One-off change"}'
 ```
 
-### Delete Event
+Modes for recurring updates:
+
+- `single`: update one instance (use `--recurrence-id`)
+- `all`: update whole series
+- `future`: split series and update this+future (use `--recurrence-id`)
+
+Delete event:
 
 ```bash
-python -m icalendar_sync delete --calendar "Personal" --uid "event-uid-here"
+python -m icalendar_sync delete --calendar "Personal" --uid "event-uid"
 ```
 
-## Requirements
+## 4. Input Contract
 
-- Python 3.9+
-- iCloud app-specific password
-- Access to iCloud CalDAV server (caldav.icloud.com:443)
+For `create`, require at least:
 
-## Security Features
+- `summary` (string)
+- `dtstart` (ISO datetime)
+- `dtend` (ISO datetime, must be later than `dtstart`)
 
-- ✅ OS keyring integration for credential storage
-- ✅ App-specific password requirement (not main password)
-- ✅ SSL/TLS verification enforced
-- ✅ Rate limiting (10 calls per 60 seconds)
-- ✅ Automatic credential redaction in logs
-- ✅ Input validation on all user inputs
+Optional fields:
 
-## License
+- `description`
+- `location`
+- `status`
+- `priority` (0-9)
+- `alarms`
+- `rrule`
 
-MIT
+## 5. Safety Rules
+
+- Validate calendar names; reject path-like payloads.
+- Keep credential material out of logs/output.
+- Prefer keyring over file storage.
+- If file storage is used, enforce strict file permissions (`0600`).
+
+## 6. Failure Handling
+
+If CalDAV auth/network fails on macOS and provider is `auto`/`caldav`, switch to `macos-native` and retry the same operation.
+
+If JSON payload is supplied as file path, ensure file size stays within safe limits before parsing.
