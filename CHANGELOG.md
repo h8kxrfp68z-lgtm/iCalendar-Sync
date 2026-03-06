@@ -2,6 +2,15 @@
 
 All notable changes to iCloud Calendar Sync will be documented in this file.
 
+## [2.4.2] - 2026-03-06
+
+### Fixed
+- Prefer environment credentials when `storage=auto` and both `ICLOUD_USERNAME` + `ICLOUD_APP_PASSWORD` are provided, avoiding stale keyring auth failures.
+- Added retry path in runtime: if auto/keyring auth fails and env credentials are present, retry once with env-only credentials before other fallbacks.
+
+### Improved
+- Keeps existing secure defaults while reducing false `Unauthorized` failures caused by outdated keychain entries.
+
 ## [2.4.1] - 2026-03-06
 
 ### Fixed

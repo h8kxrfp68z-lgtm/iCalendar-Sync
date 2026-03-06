@@ -1749,8 +1749,14 @@ def build_manager(args: argparse.Namespace):
     credential_source = (raw_storage or os.getenv("ICALENDAR_SYNC_STORAGE", "auto")).strip()
     ignore_keyring = bool(getattr(args, "ignore_keyring", False)) or is_truthy_env(os.getenv("ICALENDAR_SYNC_IGNORE_KEYRING", "0"))
     explicit_config = bool(getattr(args, "config", None))
+    has_env_credentials = bool(os.getenv("ICLOUD_USERNAME") and os.getenv("ICLOUD_APP_PASSWORD"))
+
     if ignore_keyring and credential_source in ("auto", "keyring"):
         credential_source = "env-only" if not explicit_config else "file"
+    elif credential_source == "auto" and has_env_credentials:
+        # Prefer fresh environment credentials over potentially stale keyring entries.
+        credential_source = "env-only"
+
     if explicit_config and raw_storage is None and credential_source == "auto":
         credential_source = "file"
 
@@ -1781,6 +1787,29 @@ def run_with_fallback(args: argparse.Namespace, operation_name: str, *operation_
 
     operation = getattr(manager, operation_name)
     result = operation(*operation_args, **operation_kwargs)
+
+    if (
+        isinstance(manager, CalendarManager)
+        and manager.credential_source == "auto"
+        and (result is False or result is None or result == [])
+        and not manager._connected
+        and os.getenv("ICLOUD_USERNAME")
+        and os.getenv("ICLOUD_APP_PASSWORD")
+    ):
+        print("⚠️  CalDAV auth via keyring failed, retrying with environment credentials")
+        logger.warning("Retrying CalDAV with env-only credentials after keyring auto failure")
+        retry_args = argparse.Namespace(**vars(args))
+        setattr(retry_args, "storage", "env")
+        setattr(retry_args, "ignore_keyring", True)
+        retry_manager = build_manager(retry_args)
+        retry_operation = getattr(retry_manager, operation_name)
+        retry_result = retry_operation(*operation_args, **operation_kwargs)
+        if retry_result not in (False, None, []):
+            return retry_result
+        if retry_manager._connected:
+            return retry_result
+        result = retry_result
+        manager = retry_manager
 
     should_fallback = (
         sys.platform == "darwin"
