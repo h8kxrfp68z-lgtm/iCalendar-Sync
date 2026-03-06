@@ -715,7 +715,7 @@ class CalendarManager:
         self.user_agent = (
             user_agent or os.getenv("ICALENDAR_SYNC_USER_AGENT") or DEFAULT_USER_AGENT
         ).strip()
-        if credential_source not in ("auto", "keyring", "env", "file"):
+        if credential_source not in ("auto", "keyring", "env", "file", "env-only"):
             logger.warning("Unknown credential source '%s', using auto", credential_source)
             credential_source = "auto"
         self.credential_source = credential_source
@@ -750,7 +750,7 @@ class CalendarManager:
         return True
 
     def _resolve_username(self) -> Optional[str]:
-        if self.credential_source == "env":
+        if self.credential_source in ("env", "env-only"):
             return os.getenv("ICLOUD_USERNAME")
         if self.credential_source == "file":
             return self._config_credentials.get("username")
@@ -771,7 +771,7 @@ class CalendarManager:
             logger.error("Keyring requested but unavailable: %s", KEYRING_IMPORT_ERROR)
             return None
 
-        if self.credential_source in ("auto", "env"):
+        if self.credential_source in ("auto", "env", "env-only"):
             env_password = os.getenv("ICLOUD_APP_PASSWORD")
             if env_password:
                 if validate_secret_value(env_password):
@@ -913,6 +913,68 @@ class CalendarManager:
             elapsed = (datetime.now(timezone.utc) - self._connection_time).total_seconds()
             return elapsed < self._cache_timeout
 
+    def _iter_principals(self) -> List[Any]:
+        principals: List[Any] = []
+        try:
+            principal = self.client.principal()
+        except Exception:
+            return principals
+
+        principals.append(principal)
+
+        for attr_name in ("principal", "parent", "owner"):
+            ref = getattr(principal, attr_name, None)
+            if callable(ref):
+                try:
+                    nested = ref()
+                except Exception:
+                    nested = None
+                if nested is not None and nested not in principals:
+                    principals.append(nested)
+
+        return principals
+
+    def _discover_calendars(self) -> List[Any]:
+        if self.client is None:
+            return []
+
+        discovered: List[Any] = []
+        seen_urls = set()
+
+        def add_calendar(cal: Any) -> None:
+            if cal is None:
+                return
+            candidate_url = None
+            for attr in ("url", "canonical_url"):
+                value = getattr(cal, attr, None)
+                if value:
+                    candidate_url = str(value)
+                    break
+            if candidate_url and candidate_url in seen_urls:
+                return
+            if candidate_url:
+                seen_urls.add(candidate_url)
+            discovered.append(cal)
+
+        for principal in self._iter_principals():
+            try:
+                for cal in principal.calendars() or []:
+                    add_calendar(cal)
+            except Exception:
+                pass
+
+            home_set_getter = getattr(principal, "calendar_home_set", None)
+            if callable(home_set_getter):
+                try:
+                    home_set = home_set_getter()
+                    if home_set is not None:
+                        for cal in home_set.calendars() or []:
+                            add_calendar(cal)
+                except Exception:
+                    pass
+
+        return discovered
+
     @retry(max_attempts=3, delay=1.0, backoff=2.0)
     def connect(self) -> bool:
         if self._is_connection_valid():
@@ -1021,8 +1083,7 @@ class CalendarManager:
         self._rate_limiter.wait_if_needed()
 
         try:
-            principal = self.client.principal()
-            calendars = principal.calendars()
+            calendars = self._discover_calendars()
 
             print(f"📅 Available Calendars ({len(calendars)}):\n")
             names: List[str] = []
@@ -1679,8 +1740,6 @@ def build_manager(args: argparse.Namespace):
         provider = "auto"
 
     if provider == "auto":
-        if sys.platform == "darwin":
-            return MacOSNativeCalendarManager()
         provider = "caldav"
 
     if provider == "macos-native":
@@ -1688,7 +1747,10 @@ def build_manager(args: argparse.Namespace):
 
     raw_storage = getattr(args, "storage", None)
     credential_source = (raw_storage or os.getenv("ICALENDAR_SYNC_STORAGE", "auto")).strip()
+    ignore_keyring = bool(getattr(args, "ignore_keyring", False)) or is_truthy_env(os.getenv("ICALENDAR_SYNC_IGNORE_KEYRING", "0"))
     explicit_config = bool(getattr(args, "config", None))
+    if ignore_keyring and credential_source in ("auto", "keyring"):
+        credential_source = "env-only" if not explicit_config else "file"
     if explicit_config and raw_storage is None and credential_source == "auto":
         credential_source = "file"
 
@@ -1722,7 +1784,7 @@ def run_with_fallback(args: argparse.Namespace, operation_name: str, *operation_
 
     should_fallback = (
         sys.platform == "darwin"
-        and provider_pref in ("auto", "caldav")
+        and provider_pref == "auto"
         and isinstance(manager, CalendarManager)
         and (result is False or result is None or result == [])
         and not manager._connected
@@ -1875,6 +1937,7 @@ Examples:
     list_parser = subparsers.add_parser("list", help="List calendars")
     list_parser.add_argument("--provider", choices=["auto", "caldav", "macos-native"], default="auto", help="Calendar provider backend")
     list_parser.add_argument("--storage", choices=["auto", "keyring", "env", "file"], default=None, help="Credential source for CalDAV provider (default: auto)")
+    list_parser.add_argument("--ignore-keyring", action="store_true", help="Ignore system keyring and use env/config credentials only")
     list_parser.add_argument("--config", help="Path to YAML config with credentials")
     list_parser.add_argument("--debug-http", action="store_true", help="Show detailed auth/network diagnostics")
     list_parser.add_argument("--user-agent", help=f"Override CalDAV User-Agent (default: {DEFAULT_USER_AGENT})")
@@ -1885,6 +1948,7 @@ Examples:
     get_parser.add_argument("--days", type=int, default=7, dest="days_ahead", help=f"Days ahead to retrieve (default: 7, max: {MAX_DAYS_AHEAD})")
     get_parser.add_argument("--provider", choices=["auto", "caldav", "macos-native"], default="auto", help="Calendar provider backend")
     get_parser.add_argument("--storage", choices=["auto", "keyring", "env", "file"], default=None, help="Credential source for CalDAV provider (default: auto)")
+    get_parser.add_argument("--ignore-keyring", action="store_true", help="Ignore system keyring and use env/config credentials only")
     get_parser.add_argument("--config", help="Path to YAML config with credentials")
     get_parser.add_argument("--debug-http", action="store_true", help="Show detailed auth/network diagnostics")
     get_parser.add_argument("--user-agent", help=f"Override CalDAV User-Agent (default: {DEFAULT_USER_AGENT})")
@@ -1897,6 +1961,7 @@ Examples:
     create_parser.add_argument("-y", "--yes", action="store_true", help="Auto-confirm without prompts")
     create_parser.add_argument("--provider", choices=["auto", "caldav", "macos-native"], default="auto", help="Calendar provider backend")
     create_parser.add_argument("--storage", choices=["auto", "keyring", "env", "file"], default=None, help="Credential source for CalDAV provider (default: auto)")
+    create_parser.add_argument("--ignore-keyring", action="store_true", help="Ignore system keyring and use env/config credentials only")
     create_parser.add_argument("--config", help="Path to YAML config with credentials")
     create_parser.add_argument("--debug-http", action="store_true", help="Show detailed auth/network diagnostics")
     create_parser.add_argument("--user-agent", help=f"Override CalDAV User-Agent (default: {DEFAULT_USER_AGENT})")
@@ -1915,6 +1980,7 @@ Examples:
     )
     update_parser.add_argument("--provider", choices=["auto", "caldav", "macos-native"], default="auto", help="Calendar provider backend")
     update_parser.add_argument("--storage", choices=["auto", "keyring", "env", "file"], default=None, help="Credential source for CalDAV provider (default: auto)")
+    update_parser.add_argument("--ignore-keyring", action="store_true", help="Ignore system keyring and use env/config credentials only")
     update_parser.add_argument("--config", help="Path to YAML config with credentials")
     update_parser.add_argument("--debug-http", action="store_true", help="Show detailed auth/network diagnostics")
     update_parser.add_argument("--user-agent", help=f"Override CalDAV User-Agent (default: {DEFAULT_USER_AGENT})")
@@ -1925,6 +1991,7 @@ Examples:
     delete_parser.add_argument("--uid", required=True, help="Event UID")
     delete_parser.add_argument("--provider", choices=["auto", "caldav", "macos-native"], default="auto", help="Calendar provider backend")
     delete_parser.add_argument("--storage", choices=["auto", "keyring", "env", "file"], default=None, help="Credential source for CalDAV provider (default: auto)")
+    delete_parser.add_argument("--ignore-keyring", action="store_true", help="Ignore system keyring and use env/config credentials only")
     delete_parser.add_argument("--config", help="Path to YAML config with credentials")
     delete_parser.add_argument("--debug-http", action="store_true", help="Show detailed auth/network diagnostics")
     delete_parser.add_argument("--user-agent", help=f"Override CalDAV User-Agent (default: {DEFAULT_USER_AGENT})")

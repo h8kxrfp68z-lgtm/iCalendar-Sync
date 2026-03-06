@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from icalendar_sync.calendar import CalendarManager
+from icalendar_sync.calendar import CalendarManager, build_manager, run_with_fallback
 
 
 @pytest.fixture(autouse=True)
@@ -156,11 +156,31 @@ class TestSetupCommand:
         
         from icalendar_sync.calendar import cmd_setup
         
-        args = Mock()
+        args = Mock(non_interactive=False, username=None, storage='keyring', config=None)
         cmd_setup(args)
         
         # Verify getpass was called
         mock_getpass.assert_called_once()
+
+
+class TestProviderBehavior:
+    def test_build_manager_auto_uses_caldav(self):
+        args = Mock(provider='auto', storage=None, config=None, user_agent=None, debug_http=False, ignore_keyring=False)
+        manager = build_manager(args)
+        assert isinstance(manager, CalendarManager)
+
+    @patch('icalendar_sync.calendar.CalendarManager')
+    @patch('icalendar_sync.calendar.MacOSNativeCalendarManager')
+    def test_no_fallback_when_provider_caldav(self, mock_native, mock_caldav):
+        args = Mock(provider='caldav', storage='env', config=None, user_agent=None, debug_http=False, ignore_keyring=False)
+        inst = Mock()
+        inst._connected = False
+        inst.list_calendars.return_value = []
+        mock_caldav.return_value = inst
+
+        run_with_fallback(args, 'list_calendars')
+
+        mock_native.assert_not_called()
 
 
 class TestCLI:

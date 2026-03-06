@@ -132,24 +132,26 @@ def test_build_manager_uses_file_source_when_config_explicit():
         config="/tmp/credentials.yaml",
         user_agent=None,
         debug_http=False,
+        ignore_keyring=False,
     )
     with patch("icalendar_sync.calendar.CalendarManager") as mock_manager_cls:
         build_manager(args)
         assert mock_manager_cls.call_args.kwargs["credential_source"] == "file"
 
 
-def test_build_manager_auto_uses_native_on_macos():
+def test_build_manager_auto_uses_caldav_on_macos():
     args = argparse.Namespace(
         provider="auto",
         storage=None,
         config=None,
         user_agent=None,
         debug_http=False,
+        ignore_keyring=False,
     )
     with patch("icalendar_sync.calendar.sys.platform", "darwin"):
-        with patch("icalendar_sync.calendar.MacOSNativeCalendarManager") as mock_native_cls:
+        with patch("icalendar_sync.calendar.CalendarManager") as mock_manager_cls:
             build_manager(args)
-            mock_native_cls.assert_called_once()
+            mock_manager_cls.assert_called_once()
 
 
 def test_build_manager_respects_explicit_storage_over_config():
@@ -159,6 +161,7 @@ def test_build_manager_respects_explicit_storage_over_config():
         config="/tmp/credentials.yaml",
         user_agent=None,
         debug_http=False,
+        ignore_keyring=False,
     )
     with patch("icalendar_sync.calendar.CalendarManager") as mock_manager_cls:
         build_manager(args)

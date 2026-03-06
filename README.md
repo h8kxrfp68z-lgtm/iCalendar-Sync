@@ -16,7 +16,9 @@ Secure iCloud Calendar integration for OpenClaw agents.
 - Update recurring events in modes: `single`, `all`, `future`
 - Delete events
 - Store credentials in OS keyring or secure YAML file (`0600`)
-- Use provider fallback on macOS (`caldav` -> `macos-native`)
+- Smart provider behavior in `auto` mode (tries CalDAV first, falls back to `macos-native` on macOS)
+- Explicit provider enforcement (`--provider caldav` will not silently switch to native)
+- Optional keyring bypass for debugging (`--ignore-keyring`)
 
 ## Requirements
 
@@ -83,15 +85,21 @@ icalendar-sync list
 ## Provider Modes
 
 - `--provider auto`
-  - macOS: native bridge (`macos-native`)
-  - other OS: CalDAV (`caldav`)
-- `--provider caldav`: force direct CalDAV
+  - Tries CalDAV first on all OSes
+  - On macOS only, may fall back to native bridge (`macos-native`) if CalDAV connection/auth fails
+- `--provider caldav`: force direct CalDAV (no fallback)
 - `--provider macos-native`: force Apple Calendar bridge (macOS only)
 
 For CalDAV troubleshooting:
 
 ```bash
 --debug-http --user-agent "your-agent/1.0"
+```
+
+Force CalDAV + ignore keychain (debug mode):
+
+```bash
+python -m icalendar_sync list --provider caldav --ignore-keyring --storage env
 ```
 
 ## CLI Examples
@@ -191,6 +199,7 @@ Credential-related:
 - `ICLOUD_USERNAME`
 - `ICLOUD_APP_PASSWORD`
 - `ICALENDAR_SYNC_STORAGE` (`auto|keyring|env|file`)
+- `ICALENDAR_SYNC_IGNORE_KEYRING` (`1|true|yes|on`) to force env/config credentials over keychain
 - `ICALENDAR_SYNC_CONFIG` (path to YAML file)
 
 Runtime-related:
